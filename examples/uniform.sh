@@ -14,9 +14,9 @@ let B=5
 while [ $B -le 90 ]
 do
   echo "generate models ...A="$A, "B="$B
-#  ../r-dtmc $N $A $B > rnd$N,$A,$B.model;
+  ../r-dtmc $N $A $B > rnd$N,$A,$B.model;
   echo "benchmarking ... B="$B
-#  ../benchmark -o "rnd"$N,$A,$B --plot n -t dtmc -d all $OPT --avg 2 --time-unit m -q --fp-approx 1e-5 rnd$N,$A,$B.model;
+  ../src/benchmark -o "rnd"$N,$A,$B --plot n -t dtmc -d all $OPT --avg 2 --time-unit m -q --fp-approx 1e-5 rnd$N,$A,$B.model;
   echo "insert plot data..."
   cat rnd$N,$A,$B\_usertime.data | awk "{ print $B \" \" $AWK_COL; }" >> uniform_usertime.data;
   cat rnd$N,$A,$B\_memory.data | awk "{ print $B \" \" $AWK_COL; }" >> uniform_memory.data;

@@ -1,10 +1,10 @@
 #!/bin/sh
  
-../dtmctest.exe --bench strong 5 aa 
-../dtmctest_par.exe --bench strong 5 aa_par
-../dtmctest_inv.exe --bench strong 5 aa_inv
-../dtmctest_pmf.exe --bench strong 5 aa_pmf
-../dtmctest_sig.exe --bench strong 5 aa_sig
+../src/dtmctest.exe --bench strong 5 aa 
+../src/dtmctest_par.exe --bench strong 5 aa_par
+../src/dtmctest_inv.exe --bench strong 5 aa_inv
+../src/dtmctest_pmf.exe --bench strong 5 aa_pmf
+../src/dtmctest_sig.exe --bench strong 5 aa_sig
 
 cat aa |fgrep 'user time' > aa.csv
 cat aa_par |fgrep 'user time' > aa_par.csv

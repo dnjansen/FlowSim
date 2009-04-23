@@ -26,7 +26,7 @@ for n in $N; do
  for na in $ACT; do
    for ma in $MAXA; do
      for maxsuc in $MAXSUC; do
-        ../r-mdp $n $MINSUC $maxsuc $na $MINA $ma $USIM > rpa_$n.$na.$ma.$maxsuc;
+        ../src/r-mdp $n $MINSUC $maxsuc $na $MINA $ma $USIM > rpa_$n.$na.$ma.$maxsuc;
         MODELS="$MODELS rpa_$n.$na.$ma.$maxsuc";
      done;
    done;
@@ -34,7 +34,7 @@ for n in $N; do
 done
 
  
-../benchmark --type pa --avg 1 --time-unit s --space-unit kB --labels $LABELS $DATA --model-info --latex --name rpa $OPT --precision 5  $MODELS > rp1_$x.txt
+../src/benchmark --type pa --avg 1 --time-unit s --space-unit kB --labels $LABELS $DATA --model-info --latex --name rpa $OPT --precision 5  $MODELS > rp1_$x.txt
 
 
 done

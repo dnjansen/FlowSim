@@ -7,9 +7,9 @@ AVG="--avg 1"
 #OPT="-O 0:None -O 1:Part -O 2:Quotient -O 18:QuotientPMF  -O 22:QuotientPInvariant -O 26:QuotientSig"
 OPT="-O 0:Original -O 1:Part -O 2:Quotient -O 18:QuotientPMF"
 
-../benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa  > quo_1.txt
-../benchmark --model-info --precision 5 --labels 2 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa  > quo_2.txt
-../benchmark --model-info --precision 5 --time s --labels 3 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa > quo_3.txt
+../src/benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa  > quo_1.txt
+../src/benchmark --model-info --precision 5 --labels 2 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa  > quo_2.txt
+../src/benchmark --model-info --precision 5 --time s --labels 3 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa > quo_3.txt
 
 
 
@@ -23,9 +23,9 @@ OPT="-O 0:Original -O 1:Part -O 2:Quotient -O 18:QuotientPMF"
 # #OPT="-O 0:None -O 1:Part -O 2:Quotient -O 18:QuotientPMF  -O 22:QuotientPInvariant -O 26:QuotientSig"
 # OPT="-O 0:Original -O 2:Quotient -O 18:QuotientPMF"
 
-# ../benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_1.txt
-# ../benchmark --model-info --precision 5 --labels 2 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_2.txt
-# ../benchmark --model-info --precision 5 --time s --labels 3 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_3.txt
+# ../src/benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_1.txt
+# ../src/benchmark --model-info --precision 5 --labels 2 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_2.txt
+# ../src/benchmark --model-info --precision 5 --time s --labels 3 -t pa  $OPT $AVG --latex -d all crypt3.pa crypt4.pa crypt5.pa  > quo_3.txt
 
 
 # #MODELS="stabilising0.pa stabilising1.pa stabilising2.pa stabilising3.pa stabilising4.pa stabilising5.pa"
@@ -34,7 +34,7 @@ OPT="-O 0:Original -O 1:Part -O 2:Quotient -O 18:QuotientPMF"
 # #MODELS="beauquier5.pa beauquier7.pa beauquier9.pa "
 
 # #for model in $MODELS; do
-# #../benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all $model 
+# #../src/benchmark --model-info --precision 5 --labels 1 -t pa  $OPT $AVG --latex -d all $model 
 # #done
 
 

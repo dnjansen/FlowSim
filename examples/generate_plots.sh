@@ -1,6 +1,0 @@
-gnuplot labels1_usertime.gnuplot
-gnuplot labels2_usertime.gnuplot
-gnuplot pbias_part.gnuplot
-gnuplot pbias_nonpart.gnuplot
-gnuplot fanoutsmall_usertime_fbias.gnuplot
-gnuplot fanoutsmall_maxflow_fbias.gnuplot

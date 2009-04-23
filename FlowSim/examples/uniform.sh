@@ -14,7 +14,7 @@ let B=5
 while [ $B -le 90 ]
 do
   echo "generate models ...A="$A, "B="$B
-  ../r-dtmc $N $A $B > rnd$N,$A,$B.model;
+  ../src/r-dtmc $N $A $B > rnd$N,$A,$B.model;
   echo "benchmarking ... B="$B
   ../src/benchmark -o "rnd"$N,$A,$B --plot n -t dtmc -d all $OPT --avg 2 --time-unit m -q --fp-approx 1e-5 rnd$N,$A,$B.model;
   echo "insert plot data..."

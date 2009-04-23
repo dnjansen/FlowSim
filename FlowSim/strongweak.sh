@@ -42,8 +42,8 @@ for v in $VALUES; do
   echo -n "[" "$PARAM" "] ";
   ./r-dtmc $PARAM > "$OUTDIR/model_$v";
   for o in $OPT; do
-    ./benchone_$o strong dtmc $LABELS -1 $AVG "$OUTDIR/model_$v" > "$OUTDIR/reports_$v""_$o";
-    ./benchone_$o weak   dtmc $LABELS -1 $AVG "$OUTDIR/model_$v" > "$OUTDIR/reportw_$v""_$o";
+    ./src/benchone_$o strong dtmc $LABELS -1 $AVG "$OUTDIR/model_$v" > "$OUTDIR/reports_$v""_$o";
+    ./src/benchone_$o weak   dtmc $LABELS -1 $AVG "$OUTDIR/model_$v" > "$OUTDIR/reportw_$v""_$o";
   done;
 #  rm "$OUTDIR/model_$v";
   echo "";

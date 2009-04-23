@@ -11,8 +11,8 @@ AWK_COL='$2 " " $3 " " $4 " " $5 " " $6 " " $7 " " $8 " " $9 " " $10 " " $11 " "
 #A="40"      # min number of successors per state
 #rm -f figure_2.data
 #for B in 51 52 53 54 55 56 57 58 59 60; do
-##  ../r-dtmc $N $A $B > rnd$N,$A,$B.model;
-#  ../benchmark -o "rnd" --plot n -t dtmc -d usertime --opt all -q --fp-approx 1e-15 rnd$N,$A,$B.model;
+##  ../src/r-dtmc $N $A $B > rnd$N,$A,$B.model;
+#  ../src/benchmark -o "rnd" --plot n -t dtmc -d usertime --opt all -q --fp-approx 1e-15 rnd$N,$A,$B.model;
 #  cat rnd_usertime.data | awk "{ print $B \" \" $AWK_COL; }" >> figure_2.data;
 ##  rm rnd$N,$A,$B.model rnd_usertime.data rnd_usertime.gnuplot;
 #done
@@ -24,8 +24,8 @@ rm -f figure_2.data
 let B=51
 while [ $B -le 54 ]
 do
-#  ../r-dtmc $N $A $B > rnd$N,$A,$B.model;
-  ../benchmark -o "rnd" --plot n -t dtmc -d memory --opt all --avg 2 -q --fp-approx 1e-15 rnd$N,$A,$B.model;
+#  ../src/r-dtmc $N $A $B > rnd$N,$A,$B.model;
+  ../src/benchmark -o "rnd" --plot n -t dtmc -d memory --opt all --avg 2 -q --fp-approx 1e-15 rnd$N,$A,$B.model;
   cat rnd_usertime.data | awk "{ print $B \" \" $AWK_COL; }" >> figure_2.data;
 #  rm rnd$N,$A,$B.model rnd_usertime.data rnd_usertime.gnuplot;
   let B=$B+1

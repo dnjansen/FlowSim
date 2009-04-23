@@ -1,0 +1,5 @@
+1000 1 6 1 0 0 0 0 0 10 1 8 0 0 8 $x
+
+Benchmark models with 1000 states and between 1 and 6 successors per 
+state. Average over 10 different models. Plot 2D 
+over number of labels in range 1 to 8.

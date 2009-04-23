@@ -1,0 +1,130 @@
+>>> Random DTMC Generator (r-dtmc.cc)
+
+Contains a function to generate a random DTMC and return it as a
+sparse matrix as well as a function to write a sparse matrix to a
+file in the format that the Sparse class can parse. The probability
+will always be distributed evenly between successors in DTMCs
+created by this function. Can be linked into another program or
+compiled as a stand-alone (see Makefile).
+
+
+>>> Random MDP Generator (r-mdp.cc)
+
+Contains a function to generate a random MDP and return it in an MDP
+class (declared in Sparse.h) as well as a function to output an MDP
+in a file format that the MDP class can parse. The probability will
+always be distributed evenly between successors in MDPs created by
+this function. Can be linked into another program or compiled as a
+stand-alone (see Makefile).
+
+
+>>> Sparse Matrix (Sparse.cc, Sparse.h)
+
+Sparse matrix (DTMC) and MDP classes. Used to store DTMCs and MDPs in
+memory and to parse them from files. (Currently the implementation of
+MDP is incomplete; MDPs can only be created by r-mdp.cc)
+
+
+>>> Maximum Flow (maxflow.cc, maxflow.h)
+
+Maxflow class calculates maximum flow of a given network. No
+restrictions on network structure. Implements parametric maxflow
+optimizations for repeatedly calculating the flow on the same network
+with minor changes (e.g. changing capacity of an edge). Based on push
+and relabel algorithm.
+
+
+>>> Compact Maximum Flow (compactmaxflow.cc, maxflow.h)
+
+Very lean maxflow implementation which is designed and optimized for
+the requirements of maxflow calculation in strong simulation. Uses an
+algorithm similar but not identical to push and relabel. Network
+structure is restricted to bipartite with infinite edge capacity
+except on edges connected to source/sink. Does not return the value
+of the maximum flow, but rather a boolean value indicating whether or
+not it is possible to saturate source edges and sink edges at the
+same time.
+
+
+>>> Strong Simulation (Strong.cc, StrongMF.cc, StrongCMF.cc,
+    Strong.h)
+
+Decide strong simulation in a DTMC using maximum flow.
+
+Strong.cc   : Currently exists only to include StrongMF.cc and
+              StrongCMF.cc plus one debugging function.
+StrongMF.cc : Decides strong simulation in a naive straightforward
+              way. Creates a map of all pairs of states with the same
+              label (label assigned arbitrarily for testing) and
+              iteratively decide strong simulation for all pairs.
+              Maxflow networks are reconstructed for every decision.
+StrongCMF.cc: Current working branch of StrongMF.cc which uses
+              compactmaxflow.cc instead of maxflow.cc. The decision
+              process is optimized by a partitioning scheme (see
+              Partitioning further down).
+
+The Strong* classes are used by passing a Sparse matrix class to the
+constructor and invoking the run() member function. No data is
+currently returned to the caller; the classes are still in a working
+stage and merely print debug info to stdout or in some cases to file.
+
+Manifest of functions:
+Strong*::InitializeLabels - Arbitrarily assign labels to states.
+Strong*::BuildRelationMap - Create initial 2D array of bools
+        indicating which pairs of states have the same label and will
+        thus be tested for strong simulation.
+Strong*::InitializeRelation - Initialize data structures
+Strong*::StrongSimulation - Decide strong simulation for one pair
+Strong*::ConstructNetwork - Construct maxflow network for one pair
+StrongCMF::IterateRelation_Simple - Use naive approach to decide
+        simulation in one iteration (i.e. test all pairs in the
+        relation once)
+StrongCMF::IterateRelation_Partition - Use partitioning scheme to
+        decide simulation in one iteration
+StrongCMF::MakeFirstPartition - Partition the set of states prior to
+        the first iteration
+StrongCMF::state_Less, ::state_Different - Define an order on states
+        to help speed up partitioning operations
+StrongCMF::SortSuccessors - Sort all successors per state to simplify
+        comparison of states for the order above
+StrongCMF::Repartition - Refine the partition based on one state
+        that was found not to simulate another.
+
+
+>>> Partitioning
+
+The partitioning scheme used in StrongCMF uses the fact that, when
+deciding strong simulation in large networks, many pairs that are
+tested will be probabilistically identical and do not need to be
+tested more than once. By splitting the set of states up into several
+classes of probabilistically identical states, the result of testing
+any two states from any two classes (partitions) will be the same for
+any other two states from the same two classes. In most practically
+relevant cases the time saved by only testing one pair from two
+classes instead of all possible combinations will outweigh the time
+used on partitioning the states and speed up the decision process as
+a whole.
+
+The partitioning of states described as above can only produce
+correct results in the first iteration. In the following iterations,
+entire networks are partitioned by representing each possible
+configuration of a network with a certain distribution of nodes by
+a bitstring ("signature"). Using the signature, the results of the
+maxflow algorithm can be arranged in a binary tree and subsequent
+pairs whose signature matches one for which the result has already
+been computed, it can be efficiently looked up in the binary tree.
+
+
+>>> Makefile
+
+has standard all/clean rules. Other rules:
+r-dtmc: Build r-dtmc program to randomly generate DTMCs.
+r-mdp: Build r-mdp program to randomly generate MDPs.
+flow: Build flow program which runs StrongMF and StrongCMF on a DTMC.
+
+
+>>> Testing and Debugging
+
+labeltest.cc and test.cc are only used for
+testing/debugging/profiling and are not directly related to the
+algorithms.

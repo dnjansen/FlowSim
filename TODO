@@ -1,0 +1,35 @@
+TODO
+
+OPTIMIZATION
+- smart tree structure (collapse long branches without forks into single nodes)
+- check p-invariant and sigarcs for PA sim
+
+GENERAL
+- compare performance to the results in ivan's paper
+
+DONE
+- partition probabilistically identical states in first iteration and simulate
+  only once per pair of partitions
+- partition networks in iterations after the first and simulate only once per
+  pair of identical networks
+- use STL sort to sort states and successors
+- add #defines to turn optimizations on/off
+- recognizing trivial cases (all arcs present, no arcs present, only one node on
+  at least one side of the network)
+- detect significiant edges
+- rewrote large parts of compact maxflow network creation to integrate better with
+  StrongCMF (decreases complexity of network creation)
+- added debug information about memory usage
+- clean up code, add proper comments
+- use network partitioning only for partitions with few successors (#define few)
+- plot performance with various heuristics turned on/off for comparison
+- document various heuristics
+- case studies
+- renamed StrongCMF to StrongSimulation
+- added support for CTMCs
+- rewrite relation map as table of bitset vs. table of bools (eightfold reduction in size)
+- split up StrongSimulation class into several sub classes to handle different
+  model types more cleanly
+- added support for PAs
+- create benchmark tool
+- state partitioning for PA simulation

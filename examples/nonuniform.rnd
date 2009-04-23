@@ -1,0 +1,50 @@
+100 0 $x 1 0 0.4 0 $z 0 10 0 50 0 1 6 3
+B, p
+
+
+$x 0 5 1 0 0.4 0 $z 0 5 50 100 0 1 6 4
+n, p
+
+This file contains parameters for a set of random models.
+The parser ignores everything after 15 values, so we are
+free to put comments in here. The first 9 parameters have
+the same meaning and range as those passed to r-dtmc.
+The following 6 parameters are:
+  model regen: how many times a new model is generated to
+               get averages
+  $x start, $x end: the range of the $x variable
+  $z start, $z end: the range of the $z variable
+  steps: the number of data points to get on each axis
+  labels: the number of labels to assign, this may also
+          be substituted by $x or $z
+
+Any of the first 9 parameters can be replaced by $x or $z,
+but each variable may only be used once (last occurrence
+counts if used multiple times).
+
+The benchmark tool will iterate these values in the given
+range to generate data for the entire set of models
+defined by the range of parameters. This is particularly
+useful to generate plots. In this example, 5 models with
+the same parameters are generated for each iteration and
+the results are averaged. The --avg parameter for the
+benchmark tool will ADDITIONALLY simulate each of the 5
+instances multiple times to get averages for the time
+values, which will then be averaged over the 5 models.
+
+In the above example, the number of states in the model
+is iterated in six steps from 50 to 100 and the fanout
+bias is iterated in six steps from -1 to 1. The data
+generated this way can be used to create a 3D plot. In
+order to generate a 2D plot, one of the two variables
+must be substituted by a constant value.
+
+The following command will benchmark the set of models
+defined above:
+
+../benchmark -t random example.rnd
+
+Most parameters that worked for existing models also work
+for random models in the same way. See benchmark's usage
+for more information. See r-dtmc.cc:133 for more info on
+the new model parameters.

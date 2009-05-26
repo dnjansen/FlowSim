@@ -491,9 +491,8 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
     
     relation = survivors;
     survivors.clear();
-    ++iter;
-  
 #ifdef QLOG
+    ++iter;
     fprintf(qlog, "[PURG] End iteration %d\n", iter);
 #endif
   }

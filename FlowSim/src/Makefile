@@ -1,11 +1,11 @@
 CXX=g++
-CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG -DQLOG
-#CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -pedantic
+#CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG -DQLOG
+CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
 
 .cc.o:
 	$(CXX) $(CXXFLAGS) -c $<
 
-all: r-dtmc r-mdp benchmark benchsingle modelstat verify breakpoints
+all: r-dtmc r-mdp benchmark benchsingle modelstat
 
 depend:
 	makedepend -Y *.cc *.h
@@ -19,24 +19,8 @@ r-dtmc: r-dtmc.cc prmodel.o
 r-mdp: r-mdp.cc prmodel.o
 	$(CXX) $(CXXFLAGS) -o r-mdp -D_STANDALONE_ r-mdp.cc prmodel.o
 
-dtmctest: dtmctest.cc prmodel.o
-	$(CXX) $(CXXFLAGS) -o dtmctest dtmctest.cc prmodel.o
-	$(CXX) $(CXXFLAGS) -o dtmctest_pmf -DOPT_CACHE_NETS dtmctest.cc prmodel.o
-
-patest: patest.cc prmodel.o StrongQ.cc
-	$(CXX) $(CXXFLAGS) -o patest patest.cc prmodel.o StrongQ.cc
-
-verify: verify.cc
-	$(CXX) $(CXXFLAGS) -o verify verify.cc prmodel.o
-
-breakpoints: breakpoints.cc Weak.h
-	$(CXX) $(CXXFLAGS) -o breakpoints breakpoints.cc
-
 modelstat: modelstat.cc prmodel.o
 	$(CXX) $(CXXFLAGS) -o modelstat modelstat.cc prmodel.o
-
-flow: main.o prmodel.o StrongMF.o StrongMC.o StrongDTMC.o StrongCTMC.o StrongPA.o StrongCPA.o r-dtmc.o r-mdp.o
-	$(CXX) $(CXXFLAGS) -o flow main.o prmodel.o StrongMF.o StrongMC.o StrongDTMC.o StrongCTMC.o StrongPA.o StrongCPA.o r-dtmc.o r-mdp.o
 
 benchmark: benchmark.o prmodel.o compactmaxflow.cc compactmaxflow.h r-dtmc.o
 	$(CXX) $(CXXFLAGS) -o benchmark benchmark.o prmodel.o r-dtmc.o
@@ -100,38 +84,34 @@ benchone_30: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_QUOTIENT -DOPT_SIGNIFICIANT_ARC -DOPT_P_INVARIANT -o benchone_30 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 # DO NOT DELETE
 
-StrongCPA.o: Strong.h prmodel.h compactmaxflow.h relationmap.h
+StrongCPA.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
 StrongCPA.o: compactmaxflow.cc
-StrongCTMC.o: Strong.h prmodel.h compactmaxflow.h relationmap.h
-StrongDTMC.o: Strong.h prmodel.h compactmaxflow.h relationmap.h
-StrongMC.o: Strong.h prmodel.h compactmaxflow.h relationmap.h
+StrongCTMC.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
+StrongDTMC.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
+StrongMC.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
 StrongMC.o: compactmaxflow.cc
 StrongMF.o: StrongMF.h prmodel.h maxflow.h maxflow.cc
-StrongPA.o: Strong.h prmodel.h compactmaxflow.h relationmap.h
+StrongPA.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
 StrongPA.o: compactmaxflow.cc
-bench.o: benchmark.h prmodel.h Strong.h compactmaxflow.h relationmap.h
-benchmark.o: benchmark.h prmodel.h Strong.h compactmaxflow.h relationmap.h
-benchmark.o: bench.cc
-benchone.cc: benchmark.h prmodel.h Strong.h compactmaxflow.h relationmap.h
-benchone.cc: StrongMC.cc compactmaxflow.cc StrongDTMC.cc StrongCTMC.cc
-benchone.cc: StrongPA.cc StrongCPA.cc bench.cc
-benchone.o: benchmark.h prmodel.h Strong.h compactmaxflow.h relationmap.h
-benchone.o: StrongMC.cc compactmaxflow.cc StrongDTMC.cc StrongCTMC.cc
-benchone.o: StrongPA.cc StrongCPA.cc bench.cc
-verify.cc: prmodel.h Strong.h compactmaxflow.h relationmap.h
-verify.cc: StrongMC.cc compactmaxflow.cc StrongDTMC.cc StrongCTMC.cc
-verify.cc: StrongPA.cc StrongCPA.cc
+StrongQ.o: StrongQ.h Strong.h Simrel.h prmodel.h compactmaxflow.h
+StrongQ.o: relationmap.h compactmaxflow.cc
+bench.o: benchmark.h prmodel.h Strong.h Simrel.h compactmaxflow.h
+bench.o: relationmap.h
+benchmark.o: benchmark.h prmodel.h Strong.h Simrel.h compactmaxflow.h
+benchmark.o: relationmap.h bench.cc compactmaxflow.cc
+benchone.o: benchmark.h prmodel.h Strong.h Simrel.h compactmaxflow.h
+benchone.o: relationmap.h StrongQ.h StrongMC.cc compactmaxflow.cc StrongPA.cc
+benchone.o: bench.cc
 compactmaxflow.o: compactmaxflow.h relationmap.h
-main.o: prmodel.h StrongMF.h maxflow.h Strong.h compactmaxflow.h
-main.o: relationmap.h
 maxflow.o: maxflow.h
 modelstat.o: prmodel.h
 prmodel.o: prmodel.h
-r-dtmc.o: prmodel.h
+r-dtmc.o: prmodel.h modelbuilder.h
 r-mdp.o: prmodel.h
-test.o: maxflow.cc maxflow.h
-Strong.o: prmodel.h compactmaxflow.h relationmap.h
+Simrel.o: prmodel.h compactmaxflow.h relationmap.h
+Strong.o: Simrel.h prmodel.h compactmaxflow.h relationmap.h
 StrongMF.o: prmodel.h maxflow.h
-benchmark.o: prmodel.h Strong.h compactmaxflow.h relationmap.h
+StrongQ.o: Strong.h Simrel.h prmodel.h compactmaxflow.h relationmap.h
+benchmark.o: prmodel.h Strong.h Simrel.h compactmaxflow.h relationmap.h
 compactmaxflow.o: relationmap.h
-StrongQ.o: StrongQ.cc StrongQ.h Strong.h compactmaxflow.cc compactmaxflow.h
+modelbuilder.o: prmodel.h

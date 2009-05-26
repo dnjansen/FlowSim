@@ -26,12 +26,12 @@
 #include "prmodel.h"
 #include "Strong.h"
 #include "StrongQ.h"
-#include "Weak.h"
+//#include "Weak.h"
 
 #ifndef OPT_QUOTIENT
 #include "StrongMC.cc"
 #include "StrongPA.cc"
-#include "WeakMC.cc"
+//#include "WeakMC.cc"
 #endif
 
 #include "bench.cc"
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
   Benchmark b;
   double epsilon;
   const char *errmsg;
-  unsigned long avg, simtype, type, flags = 0;
+  unsigned long avg, type, flags = 0;
   int n_states, n_labels, *labels;
   void *lf_info[3] = {&n_states, &labels, &n_labels};
   bool continuous_model;
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
   if (argc < 7 || argc > 8)
   {
     fprintf(stderr, "Usage: %s simtype mtype labels epsilon avg model [dump]\n\n", argv[0]);
-    fprintf(stderr, "simtype - simulation type: weak, strong\n");
+    fprintf(stderr, "simtype - simulation type: must always be \"strong\"\n");
     fprintf(stderr, "mtype   - model type: dtmc, ctmc, pa, cpa\n");
     fprintf(stderr, "labels  - file to read state/label association from\n");
     fprintf(stderr, "epsilon - floating-point approximation threshold (-1 = automatic)\n");
@@ -258,16 +258,7 @@ int main(int argc, char *argv[])
   flags |= 0x10;
 #endif
 
-  if (!strcmp(argv[1], "weak"))
-  {
-#ifdef OPT_QUOTIENT
-    fprintf(stderr, "Flags %lu are not compatible with weak simulation\n", flags);
-    return -1;
-#endif
-    simtype = 1;
-  }
-  else if (!strcmp(argv[1], "strong")) simtype = 2;
-  else
+  if (strcmp(argv[1], "strong"))
   {
     fprintf(stderr, "Simulation type '%s' not recognized\n", argv[1]);
     return -1;
@@ -280,12 +271,6 @@ int main(int argc, char *argv[])
   else
   {
     fprintf(stderr, "Model type '%s' not recognized\n", argv[2]);
-    return -1;
-  }
-  
-  if (simtype == 1 && type != 1)
-  {
-    fprintf(stderr, "Weak simulation is only implemented for DTMC type models\n");
     return -1;
   }
   
@@ -335,8 +320,8 @@ int main(int argc, char *argv[])
   {
   case 1:
     pm = new MarkovChain;
-    if (simtype == 1) ss = new WeakSimulation_MC;
-    else ss = new StrongSimulation_MC;
+    /*if (simtype == 1) ss = new WeakSimulation_MC;
+    else */ss = new StrongSimulation_MC;
     continuous_model = false;
     break;
   case 2:

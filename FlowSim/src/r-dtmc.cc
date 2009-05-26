@@ -457,6 +457,7 @@ int main(int argc, char *argv[])
   {
     printf("Usage: r-dtmc N P\n");
     printf("Usage: r-dtmc N A B\n");
+    printf("Usage: r-dtmc N A B C Fb Lb Cb Pb Sb\n");
     printf("\n");
     printf("   N   number of states, >0\n");
     printf("   P   probability of an edge existing between two states, [0,1]\n");

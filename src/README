@@ -120,11 +120,3 @@ been computed, it can be efficiently looked up in the binary tree.
 has standard all/clean rules. Other rules:
 r-dtmc: Build r-dtmc program to randomly generate DTMCs.
 r-mdp: Build r-mdp program to randomly generate MDPs.
-flow: Build flow program which runs StrongMF and StrongCMF on a DTMC.
-
-
->>> Testing and Debugging
-
-labeltest.cc and test.cc are only used for
-testing/debugging/profiling and are not directly related to the
-algorithms.

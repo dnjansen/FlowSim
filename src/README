@@ -1,28 +1,24 @@
 >>> Random DTMC Generator (r-dtmc.cc)
 
-Contains a function to generate a random DTMC and return it as a
-sparse matrix as well as a function to write a sparse matrix to a
-file in the format that the Sparse class can parse. The probability
-will always be distributed evenly between successors in DTMCs
-created by this function. Can be linked into another program or
-compiled as a stand-alone (see Makefile).
+Contains functions to generate random DTMCs and return them as a
+MarkovChain (class declared in prmodel.h). Can be linked into
+another program or compiled as a stand-alone (see Makefile).
 
 
 >>> Random MDP Generator (r-mdp.cc)
 
-Contains a function to generate a random MDP and return it in an MDP
-class (declared in Sparse.h) as well as a function to output an MDP
-in a file format that the MDP class can parse. The probability will
-always be distributed evenly between successors in MDPs created by
-this function. Can be linked into another program or compiled as a
-stand-alone (see Makefile).
+Contains a function to generate a random MDP/PA and return it as a
+ProbabilisticAutomaton (class declared in prmodel.h) . The
+probability will always be distributed evenly between successors in
+models created by this function. Can be linked into another program
+or compiled as a stand-alone (see Makefile).
 
 
->>> Sparse Matrix (Sparse.cc, Sparse.h)
+>>> Probabilistic Models (prmodel.cc, prmodel.h)
 
-Sparse matrix (DTMC) and MDP classes. Used to store DTMCs and MDPs in
-memory and to parse them from files. (Currently the implementation of
-MDP is incomplete; MDPs can only be created by r-mdp.cc)
+Interface class for some types of probabilistic models, namely
+MCs and PAs. The class implementations include functions for parsing
+models and generating string representations of models.
 
 
 >>> Maximum Flow (maxflow.cc, maxflow.h)
@@ -44,6 +40,12 @@ except on edges connected to source/sink. Does not return the value
 of the maximum flow, but rather a boolean value indicating whether or
 not it is possible to saturate source edges and sink edges at the
 same time.
+
+
+>>> Simulation Relation (Simrel.h)
+
+Interface for simulation relation deciders. Currently implemented only
+for strong simulation (see below).
 
 
 >>> Strong Simulation (Strong.cc, StrongMF.cc, StrongCMF.cc,

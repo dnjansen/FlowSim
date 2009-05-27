@@ -67,8 +67,7 @@ protected:
   };
 };
 
-// Private intermediate class containing functions and structures used
-// to simulate both DTMCs and CTMCs
+// Strong simulation for Markov chains (DTMC and CTMC
 class StrongSimulation_MC : public StrongSimulation
 {
 public:
@@ -147,9 +146,6 @@ protected:
 // Strong simulation for PAs
 class StrongSimulation_PA : public StrongSimulation
 {
-friend class InitialCondition_Strong_PA;
-friend class InitialCondition_Strong_CPA;
-
 public:
   StrongSimulation_PA() {}
   virtual ~StrongSimulation_PA() {}

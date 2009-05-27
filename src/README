@@ -45,11 +45,8 @@ Decide strong simulation in different types of models using maximum
 flow.
 
 StrongMC.cc   : Implements decision strategy for Markov chains.
-StrongDTMC.cc : Initial relation for deterministic-time MCs.
-StrongCTMC.cc : Initial relation for continuous-time MCs.
 StrongPA.cc   : Implements decision strategy for probabilistic
                 automata.
-StrongCPA.cc  : Functions for continuous-time PAs.
 StrongQ.cc    : Implements the quotient decision strategy for both
                 MCs and PAs.
 
@@ -117,10 +114,3 @@ parametric maximum flow; the other optimizations have no effect.
 
 A small tool which prints some statistics about input models, such as
 number of states, min/max/avg number of transitions, etc.
-
-
->>> Makefile
-
-has standard all/clean rules. Other rules:
-r-dtmc: Build r-dtmc program to randomly generate DTMCs.
-r-mdp: Build r-mdp program to randomly generate MDPs.

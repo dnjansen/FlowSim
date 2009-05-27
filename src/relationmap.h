@@ -36,8 +36,8 @@ public:
   
   // Allocate a map with s^2 cells. Attempting to access cells outside of that
   // range will cause an assertion failure if ub is less than s. If ub is greater
-  // than s, accessing cells between s and ub will cause more memory to be allocated.
-  // Accessing cells greater than ub will also cause an assertion failure.
+  // than s, accessing cells between s and ub will cause more memory to be allocated
+  // on demand.  Accessing cells greater than ub will also cause an assertion failure.
   void Create(unsigned int s, unsigned int ub = 0)
   {
     if (buffer[0]) delete [] buffer[0];

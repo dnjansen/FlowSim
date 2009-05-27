@@ -33,6 +33,16 @@
 
 using namespace std;
 
+// A helper class for creating probabilistic models in memory
+// where the numbers of states/actions/transitions aren't known
+// in advance.
+//
+// Repeatedly call Add() to add transitions (do not mix the two
+// prototypes), then BuildMC() or BuildPA() when done to return
+// objects of type MarkovChain or ProbabilisticAutomaton.
+//
+// Note: This class is mainly meant for testing and was not
+// written with performance in mind.
 class ModelBuilder
 {
 public:
@@ -78,10 +88,8 @@ public:
   {
     int n, m, l, aid;
     map<int,multimap<int,pair<int,double> > >::iterator i;
-    //map<int,multimap<pair<int,int>,pair<int,double> > >::iterator i;
     multimap<int,pair<int,double> >::iterator k;
     pair<multimap<int,pair<int,double> >::iterator, multimap<int,pair<int,double> >::iterator> kl;
-    //pair<multimap<pair<int,int>,pair<int,double> >::iterator, multimap<pair<int,int>,pair<int,double> >::iterator> kl;
     vector<int> act, row_starts;
     set<int>::iterator a;
     ProbabilisticAutomaton *pa = new ProbabilisticAutomaton;

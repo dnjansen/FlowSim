@@ -1,4 +1,0 @@
-FlowSim is known to work with Boost 1.32.0, however,
-the build of those portions which use the Boost Graph
-Library fail with Boost 1.37.0 and possibly other
-versions of Boost.

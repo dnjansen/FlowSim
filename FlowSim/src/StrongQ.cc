@@ -25,8 +25,8 @@
 #include "compactmaxflow.cc"
 
 #include <boost/config.hpp>
-#include <boost/graph/strong_components.hpp>
 #include <boost/graph/transitive_closure.hpp>
+#include <boost/graph/strong_components.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_utility.hpp>
 

@@ -5,7 +5,7 @@ CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
 .cc.o:
 	$(CXX) $(CXXFLAGS) -c $<
 
-all: r-dtmc r-mdp benchmark benchsingle modelstat
+all: r-dtmc r-mdp flowsim benchsingle modelstat
 
 depend:
 	makedepend -Y *.cc *.h
@@ -14,7 +14,7 @@ clean:
 	rm -f *~ *.o *.core
 
 clean-all: clean
-	rm -f r-dtmc r-mdp benchmark benchone_* modelstat
+	rm -f r-dtmc r-mdp flowsim benchone_* modelstat
 
 r-dtmc: r-dtmc.cc prmodel.o
 	$(CXX) $(CXXFLAGS) -o r-dtmc -D_STANDALONE_ r-dtmc.cc prmodel.o
@@ -25,8 +25,8 @@ r-mdp: r-mdp.cc prmodel.o
 modelstat: modelstat.cc prmodel.o
 	$(CXX) $(CXXFLAGS) -o modelstat modelstat.cc prmodel.o
 
-benchmark: benchmark.o prmodel.o compactmaxflow.cc compactmaxflow.h r-dtmc.o
-	$(CXX) $(CXXFLAGS) -o benchmark benchmark.o prmodel.o r-dtmc.o
+flowsim: benchmark.o prmodel.o compactmaxflow.cc compactmaxflow.h r-dtmc.o
+	$(CXX) $(CXXFLAGS) -o flowsim benchmark.o prmodel.o r-dtmc.o
 
 benchsingle: benchone_0 benchone_1 benchone_2 benchone_4 benchone_5 benchone_6 benchone_16 \
              benchone_17 benchone_18 benchone_20 benchone_21 benchone_22 benchone_24 benchone_25 \

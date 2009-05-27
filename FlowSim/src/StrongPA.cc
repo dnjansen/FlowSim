@@ -24,6 +24,7 @@
 #include "Strong.h"
 #include "compactmaxflow.cc"
 
+// Compute the simulation relation
 unsigned int StrongSimulation_PA::Simulate(ProbabilisticModel *model, std::set<std::pair<int,int> > *result)
 {
   int r, iterations = 0;
@@ -144,7 +145,7 @@ unsigned int StrongSimulation_PA::Simulate(ProbabilisticModel *model, std::set<s
 }
 
 #ifdef WITH_VERIFIER
-// Verify that a set of pairs is a simulation relation for the given model
+// Verify that a set of pairs is a strong simulation relation for the given model
 bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<int,int> > &hypothesis,
         std::set<std::pair<int,int> > *false_positives, std::set<std::pair<int,int> > *false_negatives)
 {
@@ -178,6 +179,7 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
     }
   }
   
+  // Load the hypothesis into the relation map
   rmap.Create(n_states);
   
   size_of_relation = hypothesis.size();
@@ -189,6 +191,8 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
   
   rmap.Commit();
   
+  // Decide simulation for all non-identity pairs, based on the relation
+  // being tested, and match the respective results against the hypothesis.
   for (p.x = 0; p.x < n_states; ++p.x)
   {
     for (p.y = 0; p.y < n_states; ++p.y)
@@ -216,7 +220,7 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
 }
 #endif//WITH_VERIFIER
 
-// Compute the initial relation for deterministic time PAs.
+// Compute the initial relation for discrete time PAs.
 int StrongSimulation_PA::BuildRelationMap_PA()
 {
   int m, n, size = 0;

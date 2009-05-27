@@ -58,7 +58,7 @@ public:
   
   virtual unsigned int Simulate(ProbabilisticModel*, std::set<std::pair<int,int> >*) = 0;
   
-  static inline void SetFPPrecision(double p) { CompactMaxFlow<double>::precision = (p < 0.0 ? -p : p); CompactFeasibleFlow::precision = (p < 0.0 ? -p : p); }
+  static inline void SetFPPrecision(double p) { CompactMaxFlow<double>::precision = (p < 0.0 ? -p : p); }
   
   inline void SetLabelFunction(int(*lf)(void*,int),void *ud) { label_func = lf; label_user_data = ud; }
   inline int Label(int s) { return (*label_func)(label_user_data, s); }

@@ -26,13 +26,6 @@
 #include "prmodel.h"
 #include "Strong.h"
 #include "StrongQ.h"
-//#include "Weak.h"
-
-#ifndef OPT_QUOTIENT
-#include "StrongMC.cc"
-#include "StrongPA.cc"
-//#include "WeakMC.cc"
-#endif
 
 #include "bench.cc"
 

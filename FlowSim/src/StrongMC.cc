@@ -44,6 +44,7 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   
   rmap.Create(1, n_states);
   
+  // Build initial relation
   relation = 0;
   if (m->ContinuousTimeModel()) size_of_relation = BuildRelationMap_CTMC();
   else size_of_relation = BuildRelationMap_DTMC();
@@ -56,6 +57,7 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
 #endif//DEBUG
   
 #if defined(OPT_PARTITION)
+  // Preprocessing for state partitioning optimization
   SortSuccessors();
   MakeFirstPartition();
 #endif
@@ -72,6 +74,7 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
 #endif
 #endif//DEBUG
 
+  // Main refinement loop
   while (1)
   {
     ++iterations;
@@ -157,7 +160,7 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
   row_starts = m->row_starts;
   n_states = m->n;
   
-  // If we are dealing with a CTMC, we have to compute the transition probabilities from the rates
+  // If we are dealing with a CTMC, we have to normalize transitions first
   if (ctmc = m->ContinuousTimeModel())
   {
     non_zeros = new double[m->Transitions()];
@@ -170,6 +173,7 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
     }
   }
   
+  // Load the hypothesis into the relation map
   rmap.Create(n_states);
   
   size_of_relation = hypothesis.size();
@@ -181,6 +185,8 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
   
   rmap.Commit();
   
+  // Decide simulation for all non-identity pairs, based on the relation
+  // being tested, and match the respective results against the hypothesis.
   p.next = 0;
   for (p.x = 0; p.x < n_states; ++p.x)
   {
@@ -215,7 +221,7 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
 }
 #endif//WITH_VERIFIER
 
-// Build relation map for deterministic time MCs
+// Build relation map for discrete time MCs
 int StrongSimulation_MC::BuildRelationMap_DTMC()
 {
   int m, n, size = 0;

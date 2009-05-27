@@ -122,7 +122,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   fprintf(qlog, "\n\n");
 #endif
 
-  // Find maximum stable partition pair
+  // Find maximum stable partition pair (note call to Iterate() in loop condition!)
   for (iteration = 1; Iterate() != -1; ++iteration)
   {
 #ifdef QLOG
@@ -348,7 +348,6 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
   int i, j, s;
   set<pair<int,int> > candidates, keep;
   set<pair<int,int> >::iterator mu;
-  //pair<multimap<int,int>::iterator,multimap<int,int>::iterator> ci;
   vector<set<int> >::iterator si;
   set<int>::iterator qi;
   

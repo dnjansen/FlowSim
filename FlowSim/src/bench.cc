@@ -76,8 +76,6 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
   
   for (unsigned int m = 0; m < flagvectorsize; ++m)
   {
-    //simulator->SetOptimization(flagvector[m]);
-    
     t_usr = 0.0;
     t_sys = 0.0;
     t_real = 0.0;

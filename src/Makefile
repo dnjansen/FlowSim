@@ -1,6 +1,6 @@
 CXX=g++
-#CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG -DQLOG
-CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
+CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
+#CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -DDEBUG
 
 .cc.o:
 	$(CXX) $(CXXFLAGS) -c $<
@@ -32,58 +32,58 @@ benchsingle: benchone_0 benchone_1 benchone_2 benchone_4 benchone_5 benchone_6 b
              benchone_17 benchone_18 benchone_20 benchone_21 benchone_22 benchone_24 benchone_25 \
              benchone_26 benchone_28 benchone_29 benchone_30
 
-benchone_0: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_0: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -o benchone_0 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_1: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_1: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -o benchone_1 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_2: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_2: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_QUOTIENT -o benchone_2 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 
-benchone_4: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_4: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_P_INVARIANT -o benchone_4 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_5: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_5: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_P_INVARIANT -DOPT_PARTITION -o benchone_5 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_6: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_6: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_P_INVARIANT -DOPT_QUOTIENT -o benchone_6 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 
-benchone_16: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_16: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -o benchone_16 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_17: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_17: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_PARTITION -o benchone_17 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_18: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_18: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_QUOTIENT -o benchone_18 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 
-benchone_20: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_20: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_P_INVARIANT -o benchone_20 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_21: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_21: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_PARTITION -DOPT_P_INVARIANT -o benchone_21 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_22: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_22: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_QUOTIENT -DOPT_P_INVARIANT -o benchone_22 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 
-benchone_24: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_24: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_SIGNIFICIANT_ARC -o benchone_24 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_25: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_25: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_PARTITION -DOPT_SIGNIFICIANT_ARC -o benchone_25 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_26: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_26: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_QUOTIENT -DOPT_SIGNIFICIANT_ARC -o benchone_26 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 
-benchone_28: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_28: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -o benchone_28 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_29: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark
+benchone_29: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_PARTITION -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -o benchone_29 benchone.cc prmodel.o r-dtmc.o StrongMC.cc StrongPA.cc
 
-benchone_30: prmodel.o r-dtmc.o bench.cc benchone.cc benchmark StrongQ.cc
+benchone_30: prmodel.o r-dtmc.o bench.cc benchone.cc flowsim StrongQ.cc
 	$(CXX) $(CXXFLAGS) -DOPT_CACHE_NETS -DOPT_QUOTIENT -DOPT_SIGNIFICIANT_ARC -DOPT_P_INVARIANT -o benchone_30 benchone.cc prmodel.o r-dtmc.o StrongQ.cc
 # DO NOT DELETE
 

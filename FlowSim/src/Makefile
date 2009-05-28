@@ -1,6 +1,6 @@
 CXX=g++
-CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
-#CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -DDEBUG
+#CXXFLAGS=-O0 -ggdb -Wpointer-arith -Winline -Wall -W -pedantic -DDEBUG
+CXXFLAGS=-O0 -s -Wpointer-arith -Winline -Wall -W -DDEBUG
 
 .cc.o:
 	$(CXX) $(CXXFLAGS) -c $<

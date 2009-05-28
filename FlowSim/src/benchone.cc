@@ -32,7 +32,7 @@
 int LabelFunction(void *userdata, int s)
 {
   int &n_states = *(int*)(((void**)userdata)[0]);
-  int *labels = (int*)(((void**)userdata)[1]);
+  int *labels = *(int**)(((void**)userdata)[1]);
   int &n_labels = *(int*)(((void**)userdata)[2]);
   
   if (s >= 0 && s < n_states) return labels[s];

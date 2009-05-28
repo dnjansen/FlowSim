@@ -35,9 +35,9 @@ int LabelFunction(void *userdata, int s)
   int *labels = *(int**)(((void**)userdata)[1]);
   int &n_labels = *(int*)(((void**)userdata)[2]);
   
-  if (s >= 0 && s < n_states) return labels[s];
+  if (s >= 0 && s < n_states) return (labels ? labels[s] : 0);
   
-  return n_labels;
+  return (labels ? n_labels : 1);
 }
 
 const char *load_label_data(const char *fn, int states, int **assoc, int &num_labels)
@@ -55,6 +55,21 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   {
     *assoc = 0;
     return 0;
+  }
+  else if (*fn == '!')
+  {
+    num_labels = (int)strtoul(fn + 1, 0, 10);
+    if (num_labels == 1)
+    {
+      *assoc = 0;
+      return 0;
+    }
+    else if (num_labels != 0)
+    {
+      *assoc = new int[states];
+      for (n = 0; n < states; ++n) (*assoc)[n] = n % num_labels;
+      return 0;
+    }
   }
   
   f = fopen(fn, "rb");

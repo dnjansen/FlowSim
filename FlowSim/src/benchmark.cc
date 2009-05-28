@@ -147,17 +147,16 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
   for (n = 0; n < rm->avg; ++n)
   {
     strcpy(&temp[0], "rdbenchXXXXXX");
-    mktemp(&temp[0]);
+    f = fdopen(mkstemp(&temp[0]), "wb");
     mkc = DTMC(rm->n, rm->a, rm->b, rm->fb, rm->lb, rm->c, rm->cb, rm->pb, rm->sb);
     transsum += mkc->Transitions();
-    f = fopen(&temp[0], "wb");
     mkc->Write(f);
     fclose(f);
     delete mkc;
 
     for (m = 0; m < flagvectorsize; ++m)
     {
-      sprintf(&command[0], "%s/benchone_%lu strong dtmc %u %e %u %s", &myself[0], flagvector[m], rm->labels, fpprecision, averages, &temp[0]);
+      sprintf(&command[0], "%s/benchone_%lu strong dtmc \"!%u\" %e %u %s", &myself[0], flagvector[m], rm->labels, fpprecision, averages, &temp[0]);
 
       f = popen(&command[0], "r");
       if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u %u %u %u\n",

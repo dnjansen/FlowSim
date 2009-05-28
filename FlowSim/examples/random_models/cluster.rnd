@@ -1,0 +1,10 @@
+200 5 10 $x 0 0 $z 0 0 5 1 10 0 1 10 1
+
+States = 200
+5 <= Successors <= 10
+Regenerate model 5 times
+Model has between 1 and 10 clusters, clustering bias between 0 and 1 (3D plot possible)
+10 samples for each variable
+All states have the same label
+
+This model will generate 500 instances.

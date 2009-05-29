@@ -285,8 +285,6 @@ void usage()
 "                         early due to a trivial network\n"
 "           pivfail     - # of times maxflow was aborted due to P-Invariant\n"
 "           safail      - # of times a significiant arc was deleted\n"
-"           mincmplx    - min # of executions of the maxflow main loop\n"
-"           maxcmplx    - max # of executions of the maxflow main loop\n"
 "           cache       - number of networks cached by parametric maxflow\n"
 "           cachehits   - number of times a saved network was reused\n"
 "           all         - tabulate all of the above\n"

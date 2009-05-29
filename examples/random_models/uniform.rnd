@@ -1,0 +1,9 @@
+400 1 $x 1 0 0 0 0 0 5 10 80 0 1 8 3
+
+States = 400
+1 <= Successors <= [Between 10 and 80]
+Regenerate model 5 times
+8 samples
+3 labels are distributed evenly
+
+This model will generate 40 instances.

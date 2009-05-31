@@ -1,0 +1,6 @@
+200 10 20 1 0 0 0 $x 0 5 0 1 0 0 11 3
+
+200 States, between 10 and 20 successors
+P-Bias between 0 and 1, 11 samples
+3 labels
+5 instances for each sample

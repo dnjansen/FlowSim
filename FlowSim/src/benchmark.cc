@@ -255,6 +255,7 @@ void usage()
 "                    may be one of n, m, r, r+ (see below)\n"
 "  --latex, -l       Generate a LaTeX table in <name>_<data>.tex\n"
 "  --quiet, -q       Suppress plain-text output to stdout\n"
+"  --dumprel         Dump computed simulation relation to <name>_rel.txt\n"
 "  --time-unit <U>   Unit for time specs (ms, s, m, h)\n"
 "  --space-unit <U>  Unit for memory (B, kB, MB, GB)\n"
 "  --precision <N>   Number of decimals (default 3)\n"
@@ -983,7 +984,7 @@ int main(int argc, char *argv[])
   bool data_given = false, tabulate[15] = {false, false, false, false, false, false, false, false, false, false, false, false, false}, rmap_extra = false;
   double *result[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, *plot_key, *result_rmap = 0;
   double xlow, xhigh, ylow, yhigh, low, high, average, fpprecision = -1.0, transsum, utime, stime, rtime;
-  bool xrange = false, yrange = false, model_info = false, random_model = false;
+  bool xrange = false, yrange = false, model_info = false, random_model = false, dumprelation = false, dumpsuccessful = false;
   
   const char *t_units[] = {"", "ms", "s", "m", "h"};
   const char *s_units[] = {"", "Bytes", "kB", "MB", "GB"};
@@ -1083,6 +1084,10 @@ int main(int argc, char *argv[])
         return 1;
       }
       title = argv[n];
+    }
+    else if (!strcmp(argv[n], "--dumprel"))
+    {
+      dumprelation = true;
     }
     else if (!strcmp(argv[n], "--precision"))
     {
@@ -1265,6 +1270,12 @@ int main(int argc, char *argv[])
     return 1;
   }
   
+  if(random_model && dumprelation)
+  {
+    fprintf(stderr, "Error: --dumprel cannot be used with random models\n");
+    return 1;
+  }
+  
   if ((gen_r2d || gen_r3d) && !random_model)
   {
     fprintf(stderr, "Error: 'r' and 'r+' type plots can only be performed on random models\n");
@@ -1272,7 +1283,7 @@ int main(int argc, char *argv[])
   }
   
   // Default data type to tabulate
-  if (!data_given) tabulate[0] = true;
+  if (!data_given && !dumprelation) tabulate[0] = true;
   
   // Warn if --extra-map and Quotient algorithm
   for (m = 0; rmap_extra && m < (int)cfgs.size(); ++m)
@@ -1642,6 +1653,9 @@ int main(int argc, char *argv[])
         sprintf(&command[0], "%s/benchone_%lu strong %s %s%s %e %u %s", &myself[0], flagvector[n], &modeltype[0], *i, labelext, fpprecision, averages, *i);
       else
         sprintf(&command[0], "%s/benchone_%lu strong %s \"\" %e %u %s", &myself[0], flagvector[n], &modeltype[0], fpprecision, averages, *i);
+      
+      if(dumprelation && !dumpsuccessful)
+        sprintf(&command[strlen(&command[0])], " %s_rel.txt", title);
 
       f = popen(&command[0], "r");
       if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u %u %u %u\n",
@@ -1657,6 +1671,7 @@ int main(int argc, char *argv[])
         memset(&stats, 0, sizeof(stats));
         fprintf(stderr, "Warning: Benchmark of %s, cfg %02lx failed\n", *i, flagvector[n]);
       }
+      else dumpsuccessful = true;
       pclose(f);
 
       if (tabulate[0]) result[0][n + (m * flagvectorsize)] = utime;

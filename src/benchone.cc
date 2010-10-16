@@ -89,6 +89,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   for (n = 0; n < states; ++n) (*assoc)[n] = 0;
   
   amountread = fread(buffer, 1, 1023, f);
+  *(buffer + amountread) = 0;
   do
   {
     while (*cp)

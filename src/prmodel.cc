@@ -172,7 +172,7 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
   set<int> seen_actions;
   vector<int> act_table;
   vector<int>::iterator at;
-  bool prism_format = true;
+  bool new_branch = false;
   
   if (!f) f = stdin;
   
@@ -197,15 +197,16 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
     default:                    /* transition description */
       source = strtol(&in_line[0], &next, 10);
       action = strtol(next, &next, 10);
-      if (*next == '/') prism_format = false;
-      if (prism_format && (source != last_source || action != last_action)) ++index;
-      else if (!prism_format) index = strtol(next + 1, &next, 10);
+      new_branch = false;
+      if (*next == '/') index = strtol(next + 1, &next, 10);
+      if(source != last_source || action != last_action) new_branch = true;
       last_source = source;
       last_action = action;
       target = strtol(next, &next, 10);
       prob = strtod(next, 0);
       
-      if (last_index != -1 && last_index != index) ++branch, last_index = index, state_starts[source + 1]++;
+      if (last_index != -1 && (last_index != index || new_branch))
+        ++branch, last_index = index, state_starts[source + 1]++;
       else if (last_index == -1) last_index = index, state_starts[source + 1]++;
       
       row_starts[branch + 1]++;

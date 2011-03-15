@@ -26,6 +26,8 @@
 #include <list>
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
+#include <time.h>
 #include "prmodel.h"
 #include "modelbuilder.h"
 

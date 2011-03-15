@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <stdlib.h>
 #include <vector>
 #include <set>
 #include "prmodel.h"

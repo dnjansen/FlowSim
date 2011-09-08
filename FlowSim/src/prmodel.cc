@@ -182,7 +182,7 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
   sscanf(in_line, "%d %d %d", &n, &na, &nnz);
   InitMatrix();
 
-  int x, source, target, action, last_index = -1, index = -1, branch = 0, last_source = -1, last_action = -1;
+  int x, source, target, action, last_index = -1, index = -1, branch = -1, last_source = -1, last_action = -1;
   double prob;
   long no_lines = 0;
   
@@ -205,9 +205,8 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
       target = strtol(next, &next, 10);
       prob = strtod(next, 0);
       
-      if (last_index != -1 && (last_index != index || new_branch))
+      if (last_index != index || new_branch)
         ++branch, last_index = index, state_starts[source + 1]++;
-      else if (last_index == -1) last_index = index, state_starts[source + 1]++;
       
       row_starts[branch + 1]++;
       

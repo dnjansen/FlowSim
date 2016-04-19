@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 
 #include "prmodel.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <set>
@@ -88,6 +87,13 @@ void MarkovChain::InitMatrix()
 
 void MarkovChain::Parse(FILE *f, bool con_time)
 {
+  /* The first line of a file contains the number of states and the number of
+  transitions.  Subsequent lines each contain three numbers: source state,
+  target state, and probability.  State numbers start at 0.  The lines must be
+  sorted by source state.
+  Comment lines start with the letter ``c'' (case-sensitive) and are allowed
+  anywhere after the first line. */
+
   const int MAXLINE = 128;
   char in_line[MAXLINE], *next;
   
@@ -100,6 +106,7 @@ void MarkovChain::Parse(FILE *f, bool con_time)
   continuous = con_time;
 
   int source, target;
+  int last_source = -1, last_target = -1;
   double prob;
   long no_lines = 0;
   
@@ -112,9 +119,38 @@ void MarkovChain::Parse(FILE *f, bool con_time)
     case '\0':                 /* skip empty lines at the end of file */
       break;
     default:                    /* transition description */
+      if (no_lines >= nnz)
+      {
+        // avoid buffer overflow:
+        fprintf(stderr, "There are more transitions than described in the "
+                    "first line, please check!\n");
+        exit(EXIT_FAILURE);
+      }
       source = strtol(&in_line[0], &next, 10);
       target = strtol(next, &next, 10);
       prob = strtod(next, 0);
+      if (source != last_source)
+        last_target = -1;
+      if (source < 0 || source < last_source || source >= n
+                  || target <= last_target || target >= n
+                  || prob < 0.0 || (! continuous && prob > 1.0))
+      {
+        fprintf(stderr, "Illegal line format in line: ``%s''\n", in_line);
+        if (source < 0 || source < last_source || source >= n)
+          fprintf(stderr, "The source state %d should be in [%d, %d].\n",
+                      source, max(last_source, 0), n-1);
+        else if (target <= last_target || target >= n)
+          fprintf(stderr, "The target state %d should be in [%d, %d].\n",
+                      target, last_target+1, n-1);
+        else if (prob < 0.0)
+          fprintf(stderr, "The %s %g should be >= 0.\n",
+                      continuous ? "rate" : "probability", prob);
+        else if (! continuous && prob > 1.0)
+          fprintf(stderr, "The probability %g should be <= 1.\n", prob);
+        exit(EXIT_FAILURE);
+      }
+      last_source = source;
+      last_target = target;
       row_starts[source + 1]++;
       cols[no_lines] = target;
       non_zeros[no_lines] = prob;
@@ -125,7 +161,10 @@ void MarkovChain::Parse(FILE *f, bool con_time)
 
   if (no_lines != nnz)
   {
-    printf("There are more transitions than described in the first line, please check!\n");
+    fprintf(stderr, "There are fewer transitions than described in the first "
+                "line, please check!\n"
+                "The first line of the file should be: ``%d %ld''\n", n,
+                no_lines);
     exit(1);
   }
   
@@ -167,6 +206,17 @@ void ProbabilisticAutomaton::InitMatrix()
 
 void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
 {
+  /* The first line of a file contains the number of states, the number of
+  branches (i. e. the sum of the number of nondeterministic choices in each
+  state, or the number of probability distributions) and the number of
+  transitions.  Subsequent lines each contain: the source state, the action
+  number, possibly a slash and an action index, target state, and probability.
+  State numbers start at 0.  Action numbers are not restricted.  If no index is
+  given, the same index as in the previous line is assumed.  The lines must be
+  sorted by source state, and for each source state, transitions with the same
+  action (and index) must stay together.  Comment lines start with the letter
+  ``c'' (case-sensitive) and are allowed anywhere after the first line. */
+
   const int MAXLINE = 128;
   char in_line[MAXLINE], *next;
   set<int> seen_actions;
@@ -183,6 +233,7 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
   InitMatrix();
 
   int x, source, target, action, last_index = -1, index = -1, branch = -1, last_source = -1, last_action = -1;
+  int last_target = -1;
   double prob;
   long no_lines = 0;
   
@@ -195,18 +246,60 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
     case '\0':                 /* skip empty lines at the end of file */
       break;
     default:                    /* transition description */
+      if (no_lines >= nnz)
+      {
+        // avoid buffer overflow:
+        fprintf(stderr, "There are more transitions than described in the "
+                    "first line, please check!\n");
+        exit(EXIT_FAILURE);
+      }
       source = strtol(&in_line[0], &next, 10);
       action = strtol(next, &next, 10);
       new_branch = false;
       if (*next == '/') index = strtol(next + 1, &next, 10);
-      if(source != last_source || action != last_action) new_branch = true;
+      if (source != last_source || action != last_action || index!=last_index)
+      {
+        new_branch = true;
+        last_target = -1;
+      }
+      if (source < 0 || source < last_source || source >= n)
+      {
+        fprintf(stderr, "Illegal line format in line: ``%s''\n", in_line);
+        fprintf(stderr, "The source state %d should be in [%d, %d].\n", source,
+                    max(last_source, 0), n-1);
+        exit(EXIT_FAILURE);
+      }
       last_source = source;
       last_action = action;
       target = strtol(next, &next, 10);
       prob = strtod(next, 0);
+      if (target <= last_target || target >= n
+                 || prob < 0.0 || (! con_time && prob > 1.0))
+      {
+        fprintf(stderr, "Illegal line format in line: ``%s''\n", in_line);
+        if (target <= last_target || target >= n)
+          fprintf(stderr, "The target state %d should be in [%d, %d].\n",
+                      target, last_target+1, n-1);
+        else if (prob < 0.0)
+          fprintf(stderr, "The %s %g should be >= 0.\n",
+                      con_time ? "rate" : "probability", prob);
+        else if (! con_time && prob > 1.0)
+          fprintf(stderr, "The probability %g should be <= 1.\n", prob);
+        exit(EXIT_FAILURE);
+      }
+      last_target = target;
       
-      if (last_index != index || new_branch)
+      if (new_branch)
+      {
         ++branch, last_index = index, state_starts[source + 1]++;
+        if (branch >= na)
+        {
+          // avoid buffer overflow:
+          fprintf(stderr, "There are more branches than described in the "
+                      "first line, please check!\n");
+          exit(EXIT_FAILURE);
+        }
+      }
       
       row_starts[branch + 1]++;
       
@@ -236,9 +329,12 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
     } /* end of switch */
   }   /* end of input loop */
 
-  if (no_lines != nnz)
+  if (no_lines != nnz || branch + 1 != na)
   {
-    printf("There are more transitions than described in the first line, please check!\n");
+    fprintf(stderr, "There are fewer transitions or branches than described "
+                "in the first line, please check!\n"
+                "The first line should be: ``%d %d %ld''\n", n, branch+1,
+                no_lines);
     exit(1);
   }
   

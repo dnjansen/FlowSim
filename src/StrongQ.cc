@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,16 +19,18 @@
  */
 /*****************************************************************************/
 
+// The simulation algorithm in this file follows the publication:
+// Lijun Zhang: A space-efficient probabilistic simulation algorithm.
+// In: Franck van Breugel, Marsha Chechik (eds.):
+// CONCUR 2008, Concurrency Theory.
+// (Lecture Notes in Computer Science, 5201). Berlin: Springer, 2008.
+// pages 248–263.
+// DOI 10.1007/978-3-540-85361-9_22
 
 
 #include "StrongQ.h"
-#include "compactmaxflow.cc"
 
-#include <boost/config.hpp>
 #include <boost/graph/transitive_closure.hpp>
-#include <boost/graph/strong_components.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_utility.hpp>
 
 using namespace std;
 
@@ -206,6 +208,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   delete [] partition;
   delete sim;
   sigma.clear();
+  forall.clear();
   
   if (action_masks) delete [] action_masks;
   
@@ -268,14 +271,16 @@ void StrongSimulation_Quotient::InitializeRelation()
 
   // Build relation map for the initial blocks we have. All pairs of blocks (B,B')
   // where L(B) = L(B') and Act(B) \subset_eq Act(B') are in the initial relation.
+  assert(sigma.empty());
   sigma.resize(nBlocks, std::set<int>());
   for (n = 0; n < nStates; ++n)
   {
     sigma[partition[n]].insert(n);
-    for (m = 0; m < nStates; ++m)
+  }
+  for (n = 0; n < nBlocks; ++n)
+  {
+    for (m = 0; m < nBlocks; ++m)
     {
-      if (n < nBlocks && m < nBlocks)
-      {
         if (n == m) rmap.Set(n, m);
         else
         {
@@ -284,13 +289,10 @@ void StrongSimulation_Quotient::InitializeRelation()
           while (partition[b] != m) ++b;
           if (Label(a) != Label(b))
           {
-            rmap.Clear(n, m);
             continue;
           }
           if (Act_Subseteq(a, b)) rmap.Set(n, m);
-          else rmap.Clear(n, m);
         }
-      }
     }
   }
   rmap.Commit();
@@ -363,7 +365,6 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
     // Put the distributions of the first state in each block into
     // the set of candidates for \forall distributions
     s = *si->begin();
-    candidates.clear();
     for (i = state_starts[s]; i < state_starts[s + 1]; ++i)
     {
       candidates.insert(make_pair(actions[i], i));
@@ -396,6 +397,7 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
     for (mu = candidates.begin(); mu != candidates.end(); ++mu) fprintf(qlog, "%s%d", (mu == candidates.begin() ? "" : ","), mu->second);
     fprintf(qlog, "}\n");
 #endif
+    candidates.clear();
   }
 }
 
@@ -500,6 +502,8 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
   fprintf(qlog, "[PURG] Leaving inner loop after %d iterations\n", iter);
 #endif
   
+  relation.clear();
+
   // Flush cached networks (if any) because they will be invalid in the next iteration
   sim->Flush();
 }
@@ -515,7 +519,6 @@ int StrongSimulation_Quotient::Iterate()
   std::map<int,int> par;
   std::vector<std::set<int> > vertices;
   std::vector<int> block_rep, scc, scc_rev;
-  std::vector<default_color_type> colormap;
   
   std::set<int>::iterator mia, mib;
   
@@ -620,6 +623,7 @@ int StrongSimulation_Quotient::Iterate()
     new_partition[i] = scc[new_partition[i]];
     par.insert(std::make_pair(new_partition[i], partition[i]));
   }
+  scc.clear();
   
 #ifdef QLOG
   fprintf(qlog, "[REFN] Got %d SCCs in graph (all blocks combined)\n", components);
@@ -687,6 +691,9 @@ int StrongSimulation_Quotient::Iterate()
     }
   }
   
+  par.clear();
+  scc_rev.clear();
+
   memcpy(partition, new_partition, sizeof(int) * nStates);
   
 #ifdef QLOG
@@ -781,7 +788,7 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
     if (cmf->IsFlowTotal()) return true;
     
     delete cmf;
-    cache[std::make_pair(mu1, mu2)] = 0;
+    cache.erase(std::make_pair(mu1, mu2));
     
     return false;
   }
@@ -903,5 +910,7 @@ bool StrongSimulation_Quotient::Simulator_PA::qRq(int q1, int q2, bool no_cache)
   fprintf(base->qlog, "\n");
 #endif
   
+  needed.clear();
+
   return false;
 }

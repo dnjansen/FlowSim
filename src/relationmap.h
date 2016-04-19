@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,7 +24,9 @@
 #ifndef _RMAP_H_
 #define _RMAP_H_
 
-#include <string.h>
+#include <climits>
+#include <cstdlib>
+#include <cassert>
 
 // Store a relation map as a table of bitsets. Changes have to be committed before
 // they are returned by the () operator.

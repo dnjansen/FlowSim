@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,10 +24,6 @@
 #ifndef COMPACT_MAXFLOW
 #define COMPACT_MAXFLOW
 
-#include <vector>
-#include <set>
-#include <utility>
-#include <map>
 
 #include "relationmap.h"
 
@@ -111,7 +107,9 @@ public:
     global_instances = 0;
     global_space_peak = 0;
     global_times_invoked = 0;
-    min_complexity = (unsigned int)-1;
+    global_p_inv_fails = 0;
+    global_sig_arc_fails = 0;
+    min_complexity = UINT_MAX;
     max_complexity = 0;
   }
   

@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,23 +22,43 @@
 
 
 #include "benchmark.h"
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <string.h>
 #include <math.h>
 #include <errno.h>
 #include <libgen.h>
+#include <unistd.h>
 #include <vector>
-#include <utility>
+#include <map>
 
-#include "bench.cc"
-#include "compactmaxflow.cc"
 
 char myself[128];
 
 // Parses random model parameters from a file; the parameters are assumed
 // to be space-separated and in the same order as expected by the r-dtmc tool
 // plus a number of additional parameters
+// Parameters:
+//  1st parameter: n      = number of states
+//  2nd parameter: a      = minimum number of successors per state
+//  3rd parameter: b      = maximum number of successors per state
+//  4th parameter: c      = number of clusters in model (only effective if cbias != 0.0)
+//  5th parameter: fb     = fanout bias; 0.0=random, -1.0=always minimum # of suc, 1.0=always maximum # of suc
+//  6th parameter: lb     = linearity bias; 0.0=random, 1.0=linear (no cycles)
+//  7th parameter: cb     = cluster bias; 0.0=no clusters, 1.0='c' isolated clusters of states, in between: there may be transitions between clusters
+//  8th parameter: pb     = probability bias; 0.0=uniform distributions, 1.0=biased distr.
+//  9th parameter: sb     = successor bias; 0.0=random successors chosen, 1.0=biased towards some states
+// 10th parameter: avg    = number of times a model should be analysed (and take averages)
+// 11th parameter: xstart = \
+// 12th parameter: xend   =  \
+// 13th parameter: zstart =   } see below
+// 14th parameter: zend   =  /
+// 15th parameter: steps  = /
+// 16th parameter: labels = number of labels to be used?
+
+// One of the parameters may be replaced with $x, another one with $z.
+// If one does so, multiple models will be generated and a 2d (only $x) or 3D (both $x and $z) plot will be generated.
+// The parameters xstart and xend indicate which ordinate interval should be taken for the x-axis,
+// and zstart/zend indicate similarly which ordinate interval should be taken for the z-axis.
+// The parameter steps indicates how many data points (including both endpoints) should be on the axes.
+
 bool ParseRandom(FILE *f, RandomModel *prm)
 {
   long pos, size;
@@ -280,12 +300,14 @@ void usage()
 "           memory      - peak amount of memory consumed at one point in time\n"
 "           initialsize - # of pairs/blocks in the initial relation\n"
 "           finalsize   - # of pairs in result set\n"
-"           partitions  - # of state partitions found\n"
+"           partitions  - # of state partitions found (i. e. with OPT_PARTITION:\n"
+"                         initial partitions; with OPT_QUOTIENT: final\n"
+"                         partitions)\n"
 "           iterations  - # of iterations used\n"
-"           maxflow     - # of times maxflow was used and not aborted\n"
-"                         early due to a trivial network\n"
+"           maxflow     - # of times maxflow was used and not aborted early\n"
+"                         due to a trivial network\n"
 "           pivfail     - # of times maxflow was aborted due to P-Invariant\n"
-"           safail      - # of times a significiant arc was deleted\n"
+"           safail      - # of times a significant arc was deleted\n"
 "           cache       - number of networks cached by parametric maxflow\n"
 "           cachehits   - number of times a saved network was reused\n"
 "           all         - tabulate all of the above\n"
@@ -359,18 +381,18 @@ double find_data_range(double *data, unsigned int count, bool find_min)
 // Determine the best unit to display a time value in (assuming the value is given in seconds)
 unsigned int find_best_time_unit(double avg)
 {
-  if (avg < 2) return 1;
-  else if (avg < 100) return 2;
-  else if (avg < 3600) return 3;
+  if (avg < 2.0) return 1;
+  else if (avg < 100.0) return 2;
+  else if (avg < 3600.0) return 3;
   else return 4;
 }
 
 // Determine the best unit to display an amount of memory in (assuming the value is given in bytes)
 unsigned int find_best_space_unit(double avg)
 {
-  if (avg < 1024) return 1;
-  else if (avg < 1048576) return 2;
-  else if (avg < 1048576 * 1024) return 3;
+  if (avg < 1024.0) return 1;
+  else if (avg < 1048576.0) return 2;
+  else if (avg < 1048576.0 * 1024.0) return 3;
   else return 4;
 }
 
@@ -749,7 +771,7 @@ void generate_latex(FILE *f, double *data, unsigned int rows, unsigned int cols,
   // Print LaTeX table head
   fputs("\\begin{table*}\n", f);
   fputs("\\centering\n", f);
-  fputs("\\begin{tabular}{|", f);
+  fputs("\\begin{tabular}{|l|", f);
   for (n = 0; n < cols; ++n) fputs("r|", f);
   fputs("}\n", f);
   fputs("\\hline\n", f);
@@ -1045,7 +1067,7 @@ int main(int argc, char *argv[])
       p = &modeltype[0];
       while (*p)
       {
-        if (*p >= 'A' && *p <= 'Z') *p |= 0x20;
+        if (isupper(*p)) *p = tolower(*p);
         ++p;
       }
     }
@@ -1106,7 +1128,9 @@ int main(int argc, char *argv[])
         return 1;
       }
       fpprecision = strtod(argv[n], 0);
+#ifndef DISABLE_FP_APPROXIMATION
       CompactMaxFlow<double>::precision = fpprecision;
+#endif
     }
     else if (!strcmp(argv[n], "--data") || !strcmp(argv[n], "-d"))
     {
@@ -1327,8 +1351,9 @@ int main(int argc, char *argv[])
   // Parse input models and check if they are stochastic or not
   for (; n < argc; ++n)
   {
+    errno = 0;
     f = fopen(argv[n], "rb");
-    if (f)
+    if (NULL != f && 0 == errno)
     {
       files.push_back(argv[n]);
       
@@ -1342,7 +1367,7 @@ int main(int argc, char *argv[])
         }
         if ((rm.xtarget != 0xffff || rm.ztarget != 0xffff) && gen_latex)
         {
-          fprintf(stderr, "Error: %s: LaTeX output is not supported for andom models with variable parameters\n", argv[n]);
+          fprintf(stderr, "Error: %s: LaTeX output is not supported for random models with variable parameters\n", argv[n]);
           return 1;
         }
         if (rm.xtarget != 0xffff && rm.ztarget != 0xffff && gen_r2d)
@@ -1378,7 +1403,7 @@ int main(int argc, char *argv[])
   // Set up flagvector variable to pass to the benchmark class
   if (all_opt_cfgs)
   {
-    flagvector = &allflagsvector[0];
+    flagvector = const_cast<unsigned long *>(&allflagsvector[0]);
     flagvectorsize = sizeof(allflagsvector) / sizeof(unsigned long);
     cfg_titles.clear();
     for (n = 0; n < (int)flagvectorsize; ++n) cfg_titles.push_back(0);
@@ -1533,7 +1558,7 @@ int main(int argc, char *argv[])
         {
           if (tabulate[n])
           {
-            snprintf(&datasource[0], 160, "%s_%s_%s.data", title, datanames[n], get_axis_name((rm.xtarget == 0xffff ? rm.ztarget : rm.xtarget) | 0x8000, true));
+            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s.data", title, datanames[n], get_axis_name((rm.xtarget == 0xffff ? rm.ztarget : rm.xtarget) | 0x8000, true));
             f = fopen(&datasource[0], "wb");
             gen_rnd_plain(f, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
                           (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : 10), model_states,
@@ -1550,9 +1575,9 @@ int main(int argc, char *argv[])
           {
             for (mmi2 = modelmap2.begin(); mmi2 != modelmap2.end(); ++mmi2)
             {
-              snprintf(&filename[0], 160, "%s_%s_%s.gnuplot", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.gnuplot", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
               f = fopen(&filename[0], "wb");
-              snprintf(&filename[0], 160, "%s_%s_%s.eps", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.eps", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
               rnd_2d_gnuplot_macro(f, get_axis_name(mmi2->first, false), datanames[n],
                                   (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
                                   title, &filename[0], datanames[n], flagvector, flagvectorsize, cfg_titles, mmi2->second);
@@ -1579,7 +1604,7 @@ int main(int argc, char *argv[])
         {
           if (tabulate[n])
           {
-            snprintf(&datasource[0], 160, "%s_%s_%s_%s.data", title, datanames[n], get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
+            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s_%s.data", title, datanames[n], get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
             f = fopen(&datasource[0], "wb");
             generate_gnuplot_data(f, result[n], plot_key, flagvectorsize, rsteps, 2, rm.steps, true);
             fclose(f);
@@ -1594,9 +1619,9 @@ int main(int argc, char *argv[])
           {
             for (mmi3 = modelmap3.begin(); mmi3 != modelmap3.end(); ++mmi3)
             {
-              snprintf(&filename[0], 160, "%s_%s_%s_%s.gnuplot", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.gnuplot", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
               f = fopen(&filename[0], "wb");
-              snprintf(&filename[0], 160, "%s_%s_%s_%s.eps", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.eps", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
               rnd_3d_gnuplot_macro(f, get_axis_name(mmi3->first & 0xffff, false), datanames[n],
                                   get_axis_name(mmi3->first >> 16, false),
                                   (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
@@ -1742,8 +1767,10 @@ int main(int argc, char *argv[])
     {
       if (tabulate[n])
       {
-        snprintf(&filename[0], 160, "%s_%s.tex", title, datanames[n]);
+        int len = snprintf(filename, sizeof(filename), "%s_%s.tex", title, datanames[n]);
         f = fopen(&filename[0], "wb");
+        if (len < (int) (sizeof(filename)+4))
+          filename[len-4] = '\0';
         generate_latex(f, result[n], flagvectorsize, files.size(), flagvector, cfg_titles, files,
                        (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), title,
                        (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])), model_states,
@@ -1772,14 +1799,14 @@ int main(int argc, char *argv[])
     {
       if (tabulate[n])
       {
-        snprintf(&datasource[0], 160, "%s_%s.data", title, datanames[n]);
+        snprintf(&datasource[0], sizeof(datasource), "%s_%s.data", title, datanames[n]);
         f = fopen(&datasource[0], "wb");
         generate_gnuplot_data(f, result[n], plot_key, flagvectorsize, files.size(), 1);
         fclose(f);
         
-        snprintf(&filename[0], 160, "%s_%s.gnuplot", title, datanames[n]);
+        snprintf(&filename[0], sizeof(filename), "%s_%s.gnuplot", title, datanames[n]);
         f = fopen(&filename[0], "wb");
-        snprintf(&filename[0], 160, "%s_%s.eps", title, datanames[n]);
+        snprintf(&filename[0], sizeof(filename), "%s_%s.eps", title, datanames[n]);
         generate_gnuplot_macro(f, (gen_plot_n ? "States" : "Transitions"), datanames[n],
                             (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
                             (xrange ? xlow : find_data_range(plot_key, files.size(), true)),

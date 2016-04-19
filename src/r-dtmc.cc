@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,14 +21,10 @@
 
 
 
-#include <set>
-#include <vector>
 #include <list>
 #include <assert.h>
 #include <math.h>
-#include <stdlib.h>
 #include <time.h>
-#include "prmodel.h"
 #include "modelbuilder.h"
 
 /*

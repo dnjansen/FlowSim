@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,12 +24,9 @@
 #ifndef SIMREL_H
 #define SIMREL_H
 
-#include <string.h>
 #include <set>
-#include <utility>
 #include "prmodel.h"
 #include "compactmaxflow.h"
-#include "relationmap.h"
 
 #ifdef DEBUG
 struct SimulationStatistics

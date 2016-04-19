@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,9 +24,17 @@
 #ifndef COMPACTMAXFLOW_CC
 #define COMPACTMAXFLOW_CC
 
-using namespace std;
-
+#include <cstdio>
+#include <cstring>
 #include "compactmaxflow.h"
+
+// ask explicitly for instantiations of the template:
+template class CompactMaxFlow<double>;
+template void CompactMaxFlow<double>::_FreeInternals();
+template bool CompactMaxFlow<double>::IsFlowTotal(bool restart);
+template bool CompactMaxFlow<double>::UpdateNetwork(RelationMap *rmap,
+            bool sigarc);
+template CompactMaxFlow<double>::CompactMaxFlow();
 
 #ifdef DEBUG
 template <typename _T> unsigned long CompactMaxFlow<_T>::global_space = 0;
@@ -83,6 +91,7 @@ template <typename _T> void CompactMaxFlow<_T>::_FreeInternals()
   }
 #endif//DEBUG
   valid = false;
+  n1 = n2 = 0;
   n_arcs = 0;
 }
 
@@ -112,6 +121,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
   if (lc == 0)
   {
     valid = true;
+    n1 = n2 = 0;
     n_arcs = 0;
     known_result = true;
     return true;
@@ -202,6 +212,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       if (set1[n].label == 0 && _Tless(0, set1[n].excess))
       {
         delete [] relsum1;
+        relsum1 = relsum2 = NULL;
         _FreeInternals();
         known_result = true;
         return false;
@@ -286,6 +297,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       ++global_p_inv_fails;
 #endif//DEBUG
       delete [] relsum1;
+      relsum1 = relsum2 = NULL;
       _FreeInternals();
       known_result = true;
       return false;
@@ -304,6 +316,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
         ++global_p_inv_fails;
 #endif//DEBUG
         delete [] relsum1;
+        relsum1 = relsum2 = NULL;
         _FreeInternals();
         known_result = true;
         return false;
@@ -312,13 +325,14 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
 #ifdef OPT_SIGNIFICIANT_ARC
       //if (optflags & OPT_SIGNIFICIANT_ARC)
       {
-        (arcs + n)->significiant = _Tless(relsum1[l]       - set2[r].excess, set1[l].excess)
+        arcs[n].significiant = _Tless(relsum1[l] - set2[r].excess, set1[l].excess)
                                 || _Tless(relsum2[r] + aux - set1[l].excess, set2[r].excess);
       }
 #endif
     }
     
     delete [] relsum1;
+    relsum1 = relsum2 = NULL;
   }
 #endif
 
@@ -335,6 +349,9 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
   complexity = -1;
 #endif//DEBUG
   
+#if defined(OPT_SIGNIFICIANT_ARC) || defined(OPT_P_INVARIANT)
+  assert(NULL == relsum1);
+#endif
   known_result = false;
   return true;
 }
@@ -350,10 +367,10 @@ template <typename _T> bool CompactMaxFlow<_T>::UpdateNetwork(RelationMap *rmap,
   
   for (n = 0; n < n_arcs; ++n)
   {
-    if ((arcs + n)->tail && (arcs + n)->head)
+    if (arcs[n].tail && arcs[n].head)
     {
-      if ((arcs + n)->tail->id == (arcs + n)->head->id) continue;
-      if (!(*rmap)((arcs + n)->tail->id, (arcs + n)->head->id)) _RemoveArc(arcs + n, sigarc);
+      if (arcs[n].tail->id == arcs[n].head->id) continue;
+      if (!(*rmap)(arcs[n].tail->id, arcs[n].head->id)) _RemoveArc(arcs + n, sigarc);
     }
   }
   
@@ -389,26 +406,30 @@ template <typename _T> void CompactMaxFlow<_T>::_RemoveArc(arc *a, bool/*sigarc*
   a->flow = 0;
     
 #ifdef OPT_SIGNIFICIANT_ARC
-  for (n = 0; *((set1 + l)->arcs + n); ++n)
+  for (n = 0; NULL != set1[l].arcs[n]; ++n)
   {
-    if ((*((set1 + l)->arcs + n))->head) relsum1 += tpr[((*((set1 + l)->arcs + n))->head - set2)];
+    if (NULL != set1[l].arcs[n]->head)
+      relsum1 += tpr[set1[l].arcs[n]->head - set2];
   }
-  for (n = 0; *((set1 + l)->arcs + n); ++n)
+  for (n = 0; NULL != set1[l].arcs[n]; ++n)
   {
-    if ((*((set1 + l)->arcs + n))->head && !(*((set1 + l)->arcs + n))->significiant)
+    if (NULL != set1[l].arcs[n]->head && !set1[l].arcs[n]->significiant)
     {
-      (*((set1 + l)->arcs + n))->significiant = _Tless(relsum1 - tpr[((*((set1 + l)->arcs + n))->head - set2)], tpl[l]);
+      set1[l].arcs[n]->significiant =
+                _Tless(relsum1 - tpr[set1[l].arcs[n]->head - set2], tpl[l]);
     }
   }
-  for (n = 0; *((set2 + r)->arcs + n); ++n)
+  for (n = 0; NULL != set2[r].arcs[n]; ++n)
   {
-    if ((*((set2 + r)->arcs + n))->tail) relsum2 += tpl[((*((set2 + r)->arcs + n))->tail - set1)];
+    if (NULL != set2[r].arcs[n]->tail)
+      relsum2 += tpl[set2[r].arcs[n]->tail - set1];
   }
-  for (n = 0; *((set2 + r)->arcs + n); ++n)
+  for (n = 0; NULL != set2[r].arcs[n]; ++n)
   {
-    if ((*((set2 + r)->arcs + n))->tail && !(*((set2 + r)->arcs + n))->significiant)
+    if (NULL != set2[r].arcs[n]->tail && !set2[r].arcs[n]->significiant)
     {
-      (*((set2 + r)->arcs + n))->significiant = _Tless(relsum2 - tpl[((*((set2 + r)->arcs + n))->tail - set1)], tpr[r]);
+      set2[r].arcs[n]->significiant =
+                _Tless(relsum2 - tpl[set2[r].arcs[n]->tail - set1], tpr[r]);
     }
   }
 #endif
@@ -446,30 +467,33 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
   for (n = 0; n < n1; ++n)
   {
     // Iterate through arcs connected to this node, pushing down excess if the head is not saturated
-    for (m = 0, a = 0, mlast = -1; *((set1 + n)->arcs + m); ++m)
+    for (m = 0, a = 0, mlast = -1; NULL != set1[n].arcs[m]; ++m)
     {
-      if ((*((set1 + n)->arcs + m))->head != 0)
+      if (NULL != set1[n].arcs[m]->head)
       {
         ++a; // Count only active (not deleted) arcs
-        if (_Tleq((set1 + n)->excess, (*((set1 + n)->arcs + m))->head->excess) && _Tless(0, (set1 + n)->excess))
+        if (_Tleq(set1[n].excess, set1[n].arcs[m]->head->excess) &&
+                                                    _Tless(0, set1[n].excess))
         {
-          h = (*((set1 + n)->arcs + m))->head;
+          h = set1[n].arcs[m]->head;
           // Push entire excess
-          (*((set1 + n)->arcs + m))->head->excess -= (set1 + n)->excess;
-          (*((set1 + n)->arcs + m))->flow += (set1 + n)->excess;
-          (set1 + n)->excess = 0;
+          set1[n].arcs[m]->head->excess -= set1[n].excess;
+          set1[n].arcs[m]->flow += set1[n].excess;
+          set1[n].excess = 0;
           
           // Even though we're about to leave the loop, we have to keep counting active (non-deleted) arcs
-          while (*((set1 + n)->arcs + (++m))) if ((*((set1 + n)->arcs + m))->head != 0) ++a;
+          while (NULL != set1[n].arcs[++m])
+            if (NULL != set1[n].arcs[m]->head) ++a;
           break;
         }
-        else if (_Tless(0, (*((set1 + n)->arcs + m))->head->excess) && _Tless(0, (set1 + n)->excess))
+        else if (_Tless(0, set1[n].arcs[m]->head->excess) &&
+                                                    _Tless(0, set1[n].excess))
         {
-          h = (*((set1 + n)->arcs + m))->head;
+          h = set1[n].arcs[m]->head;
           // Push part of the excess to saturate arc head
-          (*((set1 + n)->arcs + m))->flow += (*((set1 + n)->arcs + m))->head->excess;
-          (set1 + n)->excess -= (*((set1 + n)->arcs + m))->head->excess;
-          (*((set1 + n)->arcs + m))->head->excess = 0;
+          set1[n].arcs[m]->flow += set1[n].arcs[m]->head->excess;
+          set1[n].excess -= set1[n].arcs[m]->head->excess;
+          set1[n].arcs[m]->head->excess = 0;
           mlast = m; // Remember this arc
         }
         if (mlast == -1) mlast = m;
@@ -477,7 +501,7 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
     }
     
     // Update label.
-    if (a == 0 && _Tless(0, (set1 + n)->excess))
+    if (a == 0 && _Tless(0, set1[n].excess))
     {
       _FreeInternals();
       incomplete_flow = true;
@@ -487,12 +511,12 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
     {
       // This node has only one arc connected; all excess must be pushed through this arc
       // and the label is set to maximum so that no excess can be pushed back to this node
-      (set1 + n)->label = n1 + n2;
-      if (_Tless(0, (set1 + n)->excess))
+      set1[n].label = n1 + n2;
+      if (_Tless(0, set1[n].excess))
       {
-        (*((set1 + n)->arcs + mlast))->head->excess -= (set1 + n)->excess;
-        (*((set1 + n)->arcs + mlast))->flow += (set1 + n)->excess;
-        (set1 + n)->excess = 0;
+        set1[n].arcs[mlast]->head->excess -= set1[n].excess;
+        set1[n].arcs[mlast]->flow += set1[n].excess;
+        set1[n].excess = 0;
       }
     }
     else if (_Tless(0, set1[n].excess)) keep_going = true;
@@ -508,14 +532,14 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
     //keep_going = false;
     for (n = 0; n < n2; ++n)
     {
-      while (_Tless((set2 + n)->excess, 0))
+      while (_Tless(set2[n].excess, 0))
       {
         keep_going = true;
-        for (m = 0, a = -1, min_label = n1 + n2; *((set2 + n)->arcs + m); ++m)
+        for (m = 0, a = -1, min_label = n1 + n2; NULL != set2[n].arcs[m]; ++m)
         {
-          if ((*((set2 + n)->arcs + m))->tail && _Tless(0, (*((set2 + n)->arcs + m))->flow))
+          if (NULL != set2[n].arcs[m]->tail && _Tless(0,set2[n].arcs[m]->flow))
           {
-            l = ((*((set2 + n)->arcs + m))->tail)->label;
+            l = set2[n].arcs[m]->tail->label;
             if (l < min_label) min_label = l, a = m;
           }
         }
@@ -526,18 +550,18 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
           _FreeInternals();
           return false;
         }
-        (set2 + n)->label = min_label + 1;
-        if (_Tless(-(set2 + n)->excess, (*((set2 + n)->arcs + a))->flow))
+        set2[n].label = min_label + 1;
+        if (_Tless(-set2[n].excess, set2[n].arcs[a]->flow))
         {
-          (*((set2 + n)->arcs + a))->flow += (set2 + n)->excess;
-          ((*((set2 + n)->arcs + a))->tail)->excess -= (set2 + n)->excess;
-          (set2 + n)->excess = 0;
+          set2[n].arcs[a]->flow += set2[n].excess;
+          set2[n].arcs[a]->tail->excess -= set2[n].excess;
+          set2[n].excess = 0;
         }
         else
         {
-          (set2 + n)->excess += (*((set2 + n)->arcs + a))->flow;
-          ((*((set2 + n)->arcs + a))->tail)->excess += (*((set2 + n)->arcs + a))->flow;
-          (*((set2 + n)->arcs + a))->flow = 0;
+          set2[n].excess += set2[n].arcs[a]->flow;
+          set2[n].arcs[a]->tail->excess += set2[n].arcs[a]->flow;
+          set2[n].arcs[a]->flow = 0;
         }
       }
     }
@@ -546,13 +570,13 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
     
     for (n = 0; n < n1; ++n)
     {
-      while (_Tless(0, (set1 + n)->excess))
+      while (_Tless(0, set1[n].excess))
       {
-        for (m = 0, a = -1, min_label = n1 + n2; *((set1 + n)->arcs + m); ++m)
+        for (m = 0, a = -1, min_label = n1 + n2; NULL != set1[n].arcs[m]; ++m)
         {
-          if ((*((set1 + n)->arcs + m))->head)
+          if (set1[n].arcs[m]->head)
           {
-            l = ((*((set1 + n)->arcs + m))->head)->label;
+            l = set1[n].arcs[m]->head->label;
             if (l < min_label) min_label = l, a = m;
           }
         }
@@ -563,10 +587,10 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
           _FreeInternals();
           return false;
         }
-        (set1 + n)->label = min_label + 1;
-        (*((set1 + n)->arcs + a))->flow += (set1 + n)->excess;
-        ((*((set1 + n)->arcs + a))->head)->excess -= (set1 + n)->excess;
-        (set1 + n)->excess = 0;
+        set1[n].label = min_label + 1;
+        set1[n].arcs[a]->flow += set1[n].excess;
+        set1[n].arcs[a]->head->excess -= set1[n].excess;
+        set1[n].excess = 0;
       }
     }
     
@@ -597,15 +621,15 @@ template <typename _T> void CompactMaxFlow<_T>::Dump(const char *s)
   }
   for (n = 0; n < n1; ++n)
   {
-    printf("%4d[%2d] %#.10f\n", (set1 + n)->id, (set1 + n)->label, (set1 + n)->excess);
-    for (m = 0; *((set1 + n)-> arcs + m); ++m)
+    printf("%4d[%2d] %#.10f\n", set1[n].id, set1[n].label, set1[n].excess);
+    for (m = 0; NULL != set1[n].arcs[m]; ++m)
     {
-      h = (*((set1 + n)-> arcs + m))->head;
+      h = set1[n].arcs[m]->head;
       if (h)
       {
-        printf("                 -- %f (%c) --> %4d[%2d] %#.10f\n", (*((set1 + n)-> arcs + m))->flow,
+        printf("                 -- %f (%c) --> %4d[%2d] %#.10f\n", set1[n].arcs[m]->flow,
 #ifdef OPT_SIGNIFICIANT_ARC
-        ((*((set1 + n)-> arcs + m))->significiant ? '!' : ' '),
+        (set1[n].arcs[m]->significiant ? '!' : ' '),
 #else//OPT_SIGNIFICIANT_ARC
         ' ',
 #endif//OPT_SIGNIFICIANT_ARC

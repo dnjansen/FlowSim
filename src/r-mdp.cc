@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ ProbabilisticAutomaton *RandomPA(int n, int a, int b, int ac, int ma, int Ma, do
   
   for (i = 0; i < (int)state_starts.size(); ++i)
   {
-    *(mdp->state_starts + i) = state_starts[i];
+    mdp->state_starts[i] = state_starts[i];
   }
   
   // Generate transition probabilities (uniformly distributed) for the transitions defined above
@@ -144,19 +144,19 @@ ProbabilisticAutomaton *RandomPA(int n, int a, int b, int ac, int ma, int Ma, do
     transitions = row_starts[i+1] - row_starts[i];
     for (j = 0; j < transitions; ++j, ++k)
     {
-      *(mdp->cols + k) = cols[k];
-      *(mdp->non_zeros + k) = (1.0 / transitions);
+      mdp->cols[k] = cols[k];
+      mdp->non_zeros[k] = (1.0 / transitions);
     }
   }
   
   for (i = 0; i < (int)row_starts.size(); ++i)
   {
-    *(mdp->row_starts + i) = row_starts[i];
+    mdp->row_starts[i] = row_starts[i];
   }
   
   for (i = 0; i < (int)actions.size(); ++i)
   {
-    *(mdp->actions + i) = actions[i];
+    mdp->actions[i] = actions[i];
   }
   
   for (i = 0; i < mdp->da; ++i) mdp->atable[i] = i;

@@ -1,3 +1,13 @@
+The files in this directory are accompanying material for the publication
+Jonathan Bogdoll; Holger Hermanns; Lijun Zhang:
+An experimental evaluation of probabilistic simulation.
+In: Kenji Suzuki; Teruo Higashina; Keiichi Yasumoto; Khaled El-Fakih (eds.):
+Formal techniques for networked and distributed systems, FORTE 2008.
+(Lecture notes in Computer Science, 5048). Berlin: Springer, 2008.
+pages 37-52.
+DOI 10.1007/978-3-540-68855-6_3
+
+
 >>> Random DTMC Generator (r-dtmc.cc)
 
 Contains functions to generate random DTMCs and return them as a

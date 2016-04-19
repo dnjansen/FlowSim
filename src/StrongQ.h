@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
 #ifndef _STRONG_QUOTIENT_H_
 #define _STRONG_QUOTIENT_H_
 
+#include <vector>
+#include <map>
 #include "Strong.h"
 
 class StrongSimulation_Quotient : public StrongSimulation

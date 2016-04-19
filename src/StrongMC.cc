@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 
 #include "Strong.h"
-#include "compactmaxflow.cc"
 
 // Compute the simulation relation
 unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<std::pair<int,int> > *result)
@@ -109,7 +108,6 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   //if (optflags & (OPT_PARTITION | OPT_PARTITION2))
 #if defined(OPT_PARTITION)
   {
-    delete [] order;
     delete [] partition;
   }
 #endif
@@ -206,7 +204,10 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
         else if (!res && rmap(p.x, p.y) && false_positives) false_positives->insert(std::make_pair(p.x, p.y));
       }
 #ifdef OPT_CACHE_NETS
-      if (res) delete p.simulation;
+      if (res) {
+        delete p.simulation;
+        p.simulation = NULL;
+      }
 #endif//OPT_CACHE_NETS
     }
   }
@@ -250,7 +251,7 @@ int StrongSimulation_MC::BuildRelationMap_CTMC()
   int m, n, size = 0;
   double *psums = 0;
   
-  // Conmpute R(s, S) for all s and normalize transition rates
+  // Compute R(s, S) for all s and normalize transition rates
   psums = new double[n_states];
   for (int j, i = 0; i < n_states; ++i)
   {
@@ -308,6 +309,7 @@ int StrongSimulation_MC::IterateRelation(bool first)
           pp->y = s2;
 #ifdef OPT_CACHE_NETS
           pp->simulation = p.simulation;
+          p.simulation = NULL;
 #endif//OPT_CACHE_NETS
           pp->next = relation;
           relation = pp;
@@ -335,6 +337,9 @@ int StrongSimulation_MC::IterateRelation(bool first)
       {
         rmap.Clear(pp->x, pp->y);
         *anchor = pp->next;
+#       ifdef OPT_CACHE_NETS
+          assert(NULL == pp->simulation);
+#       endif
         delete pp;
         pp = *anchor;
         --new_size;
@@ -419,6 +424,7 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
           pp->y = s2;
 #ifdef OPT_CACHE_NETS
           pp->simulation = pair.simulation;
+          pair.simulation = NULL;
 #endif//OPT_CACHE_NETS
           pp->next = relation;
           relation = pp;
@@ -426,6 +432,9 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
         }
         else
         {
+#         ifdef OPT_CACHE_NETS
+            assert(NULL == pair.simulation);
+#         endif
           c = '-';
           --new_size;
           rmap.Clear(s1, s2);
@@ -441,6 +450,8 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
   
   // Drop partition map; this is only valid for the duration of the first partition
   delete [] partition_map;
+  delete [] partition;
+  partition = NULL;
   
   // Copy the new relation map back into the main buffer
   rmap.Commit();
@@ -528,7 +539,7 @@ void StrongSimulation_MC::MakeFirstPartition()
   int n, cur_part, np, s;
   StateOrder cmp(this);
   
-  order = new int[n_states + 1];
+  order = new int[n_states];
   for (n = 0; n < n_states; ++n) order[n] = n;
   
   // The array order[] defines the permutation that puts the states in the desired order.
@@ -554,6 +565,8 @@ void StrongSimulation_MC::MakeFirstPartition()
       }
     }
   }
+  delete [] order;
+  order = NULL;
 }
 #endif
 

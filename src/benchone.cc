@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,13 +21,12 @@
 
 
 
-#include <stdio.h>
+#include <string>
+#include <cmath>
 #include "benchmark.h"
-#include "prmodel.h"
 #include "Strong.h"
 #include "StrongQ.h"
 
-#include "bench.cc"
 
 int LabelFunction(void *userdata, int s)
 {
@@ -40,6 +39,16 @@ int LabelFunction(void *userdata, int s)
   return (labels ? n_labels : 1);
 }
 
+/* Reads the label file. It is not required that every state has a label.
+Labels can be any string. The label file may contain comment lines (with #);
+however, if a comment appears on a line with a label, it is taken to be part
+of the label, so it will be regarded as a different label than one without
+comment. Every line may specify a single state, a state range (n1-n2) or a list
+of states (n1,n2,n3...); lists and ranges cannot be mixed. Comment lines should
+not be longer than 511 characters.
+(A label may actually consist of multiple words. This can be used to specify
+states that satisfy more than one atomic proposition. Note, however, that
+``a b'' and ``b a'' are treated as different labels.) */
 const char *load_label_data(const char *fn, int states, int **assoc, int &num_labels)
 {
   FILE *f = 0;
@@ -89,7 +98,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   for (n = 0; n < states; ++n) (*assoc)[n] = 0;
   
   amountread = fread(buffer, 1, 1023, f);
-  *(buffer + amountread) = 0;
+  buffer[amountread] = '\0';
   do
   {
     while (*cp)
@@ -97,7 +106,8 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
       switch (state)
       {
       case 0:
-        while (*cp == ' ' || *cp == '\t' || *cp == '\r' || *cp == '\n') ++cp;
+        /* expect whitespace, then a state number, list or range, or comment */
+        while (isspace(*cp) ) ++cp;
         if (*cp == '#')
         {
           np = strchr(cp, '\n');
@@ -108,19 +118,21 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
         state = 1;
         break;
       case 1:
-        if (*cp >= '0' && *cp <= '9')
+        /* expect a state number, list or range */
+        if ( isdigit(*cp) )
         {
           t_states.clear();
           t_states.insert(strtol(cp, &np, 10));
           cp = np;
           if (*cp == ',') ++cp, state = 2;
           else if (*cp == '-') ++cp, state = 3;
-          else if (*cp == ' ' || *cp == '\t') state = 4;
+          else if ( isblank(*cp) ) state = 4;
           else
           {
             fclose(f);
             delete [] buffer;
             delete [] *assoc;
+            *assoc = NULL;
             return "Format error; expected list, range or single state";
           }
         }
@@ -129,15 +141,18 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected state";
         }
         break;
       case 2:
-        if (*cp < '0' || *cp > '9')
+        /* expect a state number (as part of a list) */
+        if ( ! isdigit(*cp) )
         {
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected state number (in list)";
         }
         t_states.insert(strtol(cp, &np, 10));
@@ -147,46 +162,52 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
           ++cp;
           break;
         }
-        else if (*cp == ' ' || *cp == '\t') state = 4;
+        else if ( isblank(*cp) ) state = 4;
         else
         {
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected comma or end-of-list";
         }
         break;
       case 3:
-        if (*cp < '0' || *cp > '9')
+        /* expect a state number (as upper bound of a range) */
+        if ( ! isdigit(*cp) )
         {
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected state number (in range)";
         }
         f_state = strtol(cp, &np, 10);
         for (n = (*t_states.begin()) + 1; n <= f_state; ++n) t_states.insert(n);
         cp = np;
-        if (*cp != ' ' && *cp != '\t')
+        if ( ! isblank(*cp) )
         {
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected white-space after range";
         }
         state = 4;
         break;
       case 4:
-        while (*cp == ' ' || *cp == '\t') ++cp;
+        /* expect white space, then a label, then a newline */
+        while ( isblank(*cp) ) ++cp;
         np = strchr(cp, '\n');
         if (!np)
         {
           fclose(f);
           delete [] buffer;
           delete [] *assoc;
+          *assoc = NULL;
           return "Format error; expected line-break after label";
         }
-        while (*np == ' ' || *np == '\t' || *np == '\n' || *np == '\r') --np;
+        while ( isspace(*np) ) --np;
         f_label.assign(cp, np - cp + 1);
         if (t_labels.find(f_label) != t_labels.end()) cur_label = t_labels[f_label];
         else
@@ -244,6 +265,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "simtype - simulation type: must always be \"strong\"\n");
     fprintf(stderr, "mtype   - model type: dtmc, ctmc, pa, cpa\n");
     fprintf(stderr, "labels  - file to read state/label association from\n");
+    fprintf(stderr, "          (or \"!n\" for n labels, assigned in turn)\n");
     fprintf(stderr, "epsilon - floating-point approximation threshold (-1 = automatic)\n");
     fprintf(stderr, "avg     - perform benchmark this many times to obtain average values\n");
     fprintf(stderr, "model   - input model filename. may be \"-\" to read from stdin\n");

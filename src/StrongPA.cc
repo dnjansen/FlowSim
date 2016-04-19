@@ -2,7 +2,7 @@
 /*!
  *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
  *
- *   This file is part of FLowSim.
+ *   This file is part of FlowSim.
 
  *   FlowSim is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 
 #include "Strong.h"
-#include "compactmaxflow.cc"
 
 // Compute the simulation relation
 unsigned int StrongSimulation_PA::Simulate(ProbabilisticModel *model, std::set<std::pair<int,int> > *result)
@@ -121,7 +120,6 @@ unsigned int StrongSimulation_PA::Simulate(ProbabilisticModel *model, std::set<s
   //if (optflags & OPT_PARTITION)
 #ifdef OPT_PARTITION
   {
-    delete [] order;
     delete [] partition;
   }
 #endif
@@ -298,6 +296,8 @@ int StrongSimulation_PA::BuildRelationMap_CPA()
   
   rmap.Commit();
   
+  delete [] dist_sums;
+
   return size;
 }
 
@@ -382,6 +382,7 @@ int StrongSimulation_PA::IterateRelation_FirstPartition()
   char *partition_map, c; // 2D array mapping pairs of partitions to values of unknown, failure or success
   Pair pair, *pp;
 
+  assert(NULL != partition);
   // Allocate and initialize the partition map
   partition_map = new char[partitions * partitions];
   memset(partition_map, 0, sizeof(char) * partitions * partitions);
@@ -442,6 +443,8 @@ int StrongSimulation_PA::IterateRelation_FirstPartition()
   
   // Drop partition map; this is only valid for the duration of the first partition
   delete [] partition_map;
+  delete [] partition;
+  partition = NULL;
   
   // Copy the new relation map back into the main buffer
   rmap.Commit();
@@ -628,7 +631,7 @@ void StrongSimulation_PA::MakeFirstPartition()
   int n, cur_part, np, s;
   StateOrder cmp(this);
   
-  order = new int[n_states + 1];
+  order = new int[n_states];
   for (n = 0; n < n_states; ++n) order[n] = n;
   
   // The array order[] defines the permutation that puts the states in the desired order.
@@ -639,6 +642,7 @@ void StrongSimulation_PA::MakeFirstPartition()
   
   // Determine partitions
   partitions = 1;
+  assert(NULL == partition);
   partition = new int[n_states];
   memset(partition, 0, sizeof(int) * n_states);
   for (n = 1; n < n_states; ++n)
@@ -654,6 +658,8 @@ void StrongSimulation_PA::MakeFirstPartition()
       }
     }
   }
+  delete [] order;
+  order = NULL;
 }
 
 // Determine whether state s1 is less than state s2 (this is a largely arbitrary relation which helps partition the states)

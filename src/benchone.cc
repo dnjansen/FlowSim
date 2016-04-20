@@ -387,14 +387,16 @@ int main(int argc, char *argv[])
 
   memcpy(&stats, b.GetStats(0), sizeof(SimulationStatistics));
 
-  printf("%e %e %e %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u %u %u %u\n",
+  printf("%e %e %e %u %u %u %u %u %u %u %zu %zu %zu %zu %zu %u %u %u %u "
+    "%.3e %.3e %.3e\n",
     b.GetUserTime(0), b.GetSystemTime(0), b.GetRealTime(0), stats.num_partitions,
     stats.num_iterations, stats.num_initial_pairs, stats.num_final_pairs,
     stats.num_maxflow,
     stats.num_p_invariant_fails, stats.num_sig_arc_fails, stats.mem_relation_map,
     stats.mem_partition_map, stats.mem_relation,
     stats.mem_maxflow, stats.mem_model, stats.min_complexity, stats.max_complexity,
-    stats.num_nets_cached, stats.num_cache_hits);
+    stats.num_nets_cached, stats.num_cache_hits,
+    b.GetUserTimeStdev(0), b.GetSystemTimeStdev(0), b.GetRealTimeStdev(0));
 
   delete pm;
   delete ss;

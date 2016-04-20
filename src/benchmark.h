@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -56,6 +57,9 @@ public:
   inline double GetUserTime(unsigned int i) { if (!tu) return 0.0; if (i >= rows) return 0.0; return tu[i]; }
   inline double GetSystemTime(unsigned int i) { if (!ts) return 0.0; if (i >= rows) return 0.0; return ts[i]; }
   inline double GetRealTime(unsigned int i) { if (!tr) return 0.0; if (i >= rows) return 0.0; return tr[i]; }
+  inline double GetUserTimeStdev(unsigned int i)   { if (NULL == tu_stdev) return 0.0/0.0; if (i >= rows) return 0.0; return tu_stdev[i]; }
+  inline double GetSystemTimeStdev(unsigned int i) { if (NULL == ts_stdev) return 0.0/0.0; if (i >= rows) return 0.0; return ts_stdev[i]; }
+  inline double GetRealTimeStdev(unsigned int i)   { if (NULL == tr_stdev) return 0.0/0.0; if (i >= rows) return 0.0; return tr_stdev[i]; }
   inline const SimulationStatistics* GetStats(unsigned int i) { if (!ss || i >= rows) return 0; return ss + i; }
   inline int GetStates() { return states; }
   inline double GetTransitions() { return transitions; }
@@ -63,6 +67,7 @@ public:
   
 private:
   double *tu, *ts, *tr, transitions;
+  double *tu_stdev, *ts_stdev, *tr_stdev; /* standard deviations */
   SimulationStatistics *ss;
   unsigned int rows;
   int states;

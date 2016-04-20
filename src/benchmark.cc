@@ -154,6 +154,7 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
   int transsum = 0;
   SimulationStatistics stats;
   double utime, stime, rtime;
+  double utime_stdev, stime_stdev, rtime_stdev;
   MarkovChain *mkc;
 
   for (n = 0; n < flagvectorsize; ++n)
@@ -180,14 +181,16 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
       sprintf(&command[0], "%s/benchone_%lu strong dtmc \"!%u\" %e %u %s", &myself[0], flagvector[m], rm->labels, fpprecision, averages, &temp[0]);
 
       f = popen(&command[0], "r");
-      if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u %u %u %u\n",
+      if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u "
+        "%u %u %u %le %le %le\n",
         &utime, &stime, &rtime, &stats.num_partitions,
         &stats.num_iterations, &stats.num_initial_pairs, &stats.num_final_pairs,
         &stats.num_maxflow,
         &stats.num_p_invariant_fails, &stats.num_sig_arc_fails, &stats.mem_relation_map,
         &stats.mem_partition_map, &stats.mem_relation,
         &stats.mem_maxflow, &stats.mem_model, &stats.min_complexity, &stats.max_complexity,
-        &stats.num_nets_cached, &stats.num_cache_hits) < 19)
+        &stats.num_nets_cached, &stats.num_cache_hits,
+        &utime_stdev, &stime_stdev, &rtime_stdev) < 22)
       {
         utime = -1, rtime = -1, stime = -1;
         memset(&stats, 0, sizeof(stats));
@@ -195,9 +198,18 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
       }
       pclose(f);
 
-      if (tabulate[0]) result[0][(m * pitch) + res0] = utime;
-      if (tabulate[1]) result[1][(m * pitch) + res0] = stime;
-      if (tabulate[2]) result[2][(m * pitch) + res0] = rtime;
+      if (tabulate[0]) {
+        result[ 0][(m * pitch) + res0] = utime;
+        result[15][(m * pitch) + res0] = utime_stdev;
+      }
+      if (tabulate[1]) {
+        result[ 1][(m * pitch) + res0] = stime;
+        result[16][(m * pitch) + res0] = stime_stdev;
+      }
+      if (tabulate[2]) {
+        result[ 2][(m * pitch) + res0] = rtime;
+        result[17][(m * pitch) + res0] = rtime_stdev;
+      }
       if (tabulate[3])
       {
         result[3][(m * pitch) + res0] += double(stats.mem_relation + stats.mem_maxflow
@@ -732,7 +744,8 @@ void gen_rnd_plain(FILE *f, RandomModel *prm, double *data, unsigned int rows, u
 void generate_latex(FILE *f, double *data, unsigned int rows, unsigned int cols, unsigned long *flagvector,
                     std::vector<const char*> &cfg_titles, std::vector<const char*> &files, double *extra,
                     const char *extra_title, int precision, const char *table_title, const char *unit,
-                    std::vector<unsigned int> &m_n, std::vector<double> &m_m, std::vector<unsigned int> &m_a)
+                    std::vector<unsigned int> &m_n, std::vector<double> &m_m, std::vector<unsigned int> &m_a,
+                    unsigned int averages)
 {
   int num_width, str_width, len;
   unsigned int n, m;
@@ -827,7 +840,9 @@ void generate_latex(FILE *f, double *data, unsigned int rows, unsigned int cols,
   // Print LaTeX table footer
   fputs("\\hline\n", f);
   fputs("\\end{tabular}\n", f);
-  fprintf(f, "\\caption{StrongSimulation benchmark. Values are in %s\\label{tab:%s}}\n", unit, table_title);
+  fprintf(f, "\\caption{StrongSimulation benchmark. Values averaged over %d "
+                        "runs. They are in %s\\label{tab:%s}}\n",
+                        averages, unit, table_title);
   fputs("\\end{table*}\n", f);
 }
 
@@ -997,11 +1012,11 @@ static
 static
   const char *s_units[] = {"", "Bytes", "KiB", "MiB", "GiB"};
 static
-  const char *datanames[15] = {"usertime", "systemtime", "realtime", "memory", "initialsize",
+  const char *datanames[18] = {"usertime", "systemtime", "realtime", "memory", "initialsize",
     "finalsize", "partitions", "iterations", "maxflow", "pivfail", "safail", "mincmplx", "maxcmplx",
-    "cache", "cachehits"};
+    "cache", "cachehits", "usertime stdev", "systemtime stdev", "realtime stdev"};
 
-void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
+void HandleRandomMC(std::vector<const char*> &files, bool tabulate[18],
                 unsigned long *flagvector, unsigned long flagvectorsize,
                 unsigned int averages, double fpprecision, bool rmap_extra,
                 bool model_info, unsigned int t_unit, unsigned int s_unit,
@@ -1011,9 +1026,9 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
   int n, m, j, k;
   FILE *f;
   unsigned int rsteps, zsteps;
-  double *result[15] = {NULL, NULL, NULL, NULL, NULL, NULL,
+  double *result[18] = {NULL, NULL, NULL, NULL, NULL, NULL,
                         NULL, NULL, NULL, NULL, NULL, NULL,
-                        NULL, NULL, NULL},
+                        NULL, NULL, NULL, NULL, NULL, NULL},
         *plot_key, *result_rmap = NULL;
   double transsum;
   char datasource[160], filename[160];
@@ -1090,7 +1105,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
       zsteps = (rm.ztarget == 0xffff ? 1 : rm.steps);
       rsteps = (rm.xtarget == 0xffff ? 1 : rm.steps) * zsteps;
       
-      for (n = 0; n < 15; ++n)
+      for (n = 0; n < 18; ++n)
       {
         if (tabulate[n]) result[n] = new double[flagvectorsize * rsteps];
       }
@@ -1142,20 +1157,30 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
       }
       fprintf(stderr, "\n");
       
-      if (result[0]) unit_transform(result[0], flagvectorsize * rsteps, t_unit, false);
-      if (result[1]) unit_transform(result[1], flagvectorsize * rsteps, t_unit, false);
-      if (result[2]) unit_transform(result[2], flagvectorsize * rsteps, t_unit, false);
+      if (result[0]) {
+        unit_transform(result[ 0], flagvectorsize * rsteps, t_unit, false);
+        unit_transform(result[15], flagvectorsize * rsteps, t_unit, false);
+      }
+      if (result[1]) {
+        unit_transform(result[ 1], flagvectorsize * rsteps, t_unit, false);
+        unit_transform(result[16], flagvectorsize * rsteps, t_unit, false);
+      }
+      if (result[2]) {
+        unit_transform(result[ 2], flagvectorsize * rsteps, t_unit, false);
+        unit_transform(result[17], flagvectorsize * rsteps, t_unit, false);
+      }
       if (result[3]) unit_transform(result[3], flagvectorsize * rsteps, s_unit, true);
       if (result_rmap) unit_transform(result_rmap, flagvectorsize * rsteps, s_unit, true);
       
       if (gen_plain)
       {
-        for (n = 0; n < 15; ++n)
+        for (n = 0; n < 18; ++n)
         {
           if (tabulate[n])
           {
             gen_rnd_plain(stdout, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
-                          (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), model_states,
+                          n == 3 ? result_rmap : 0, "Map size",
+                          n > 3 && n < 15 ? 0 : precision, model_states,
                           model_transitions, model_actions, basenameptr(*i), datanames[n]);
           }
         }
@@ -1170,7 +1195,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
           plot_key[n] = (rm.xtarget == 0xffff ? (rm.zstart + ((rm.zend - rm.zstart) * n / (rm.steps - 1))) : (rm.xstart + ((rm.xend - rm.xstart) * n / (rm.steps - 1))));
         }
         
-        for (n = 0; n < 15; ++n)
+        for (n = 0; n < 18; ++n)
         {
           if (tabulate[n])
           {
@@ -1185,7 +1210,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
         
         delete [] plot_key;
 
-        for (n = 0; n < 15; ++n)
+        for (n = 0; n < 18; ++n)
         {
           if (tabulate[n])
           {
@@ -1216,7 +1241,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
           }
         }
         
-        for (n = 0; n < 15; ++n)
+        for (n = 0; n < 18; ++n)
         {
           if (tabulate[n])
           {
@@ -1229,7 +1254,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
         
         delete [] plot_key;
 
-        for (n = 0; n < 15; ++n)
+        for (n = 0; n < 18; ++n)
         {
           if (tabulate[n])
           {
@@ -1248,7 +1273,7 @@ void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
         }
       }
       
-      for (n = 0; n < 15; ++n)
+      for (n = 0; n < 18; ++n)
       {
         if (tabulate[n]) delete [] result[n];
       }
@@ -1274,9 +1299,17 @@ int main(int argc, char *argv[])
   int precision = 3, total;
   const char *title = "benchmark";
   bool gen_plot_n = false, gen_plot_m = false, gen_latex = false, gen_plain = true, all_opt_cfgs = false, gen_r2d = false, gen_r3d = false;
-  bool data_given = false, tabulate[15] = {false, false, false, false, false, false, false, false, false, false, false, false, false}, rmap_extra = false;
-  double *result[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, *plot_key, *result_rmap = 0;
+  bool data_given = false,
+        tabulate[18] = {false, false, false, false, false, false,
+                        false, false, false, false, false, false,
+                        false, false, false, false, false, false},
+        rmap_extra = false;
+  double *result[18] = {NULL, NULL, NULL, NULL, NULL, NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL},
+        *plot_key, *result_rmap = 0;
   double xlow, xhigh, ylow, yhigh, low, high, average, fpprecision = -1.0, utime, stime, rtime;
+  double utime_stdev, stime_stdev, rtime_stdev;
   bool xrange = false, yrange = false, model_info = false, random_model = false, dumprelation = false, dumpsuccessful = false;
   
   unsigned int t_unit = 0, s_unit = 0;
@@ -1576,6 +1609,15 @@ int main(int argc, char *argv[])
   
   // Default data type to tabulate
   if (!data_given && !dumprelation) tabulate[0] = true;
+  if (averages > 1) {
+    tabulate[15] = tabulate[0];
+    tabulate[16] = tabulate[1];
+    tabulate[17] = tabulate[2];
+  } else {
+    tabulate[15] = false;
+    tabulate[16] = false;
+    tabulate[17] = false;
+  }
   
   // Warn if --extra-map and Quotient algorithm
   for (m = 0; rmap_extra && m < (int)cfgs.size(); ++m)
@@ -1722,16 +1764,19 @@ int main(int argc, char *argv[])
         sprintf(&command[strlen(&command[0])], " %s_rel.txt", title);
 
       f = popen(&command[0], "r");
-      if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %lu %lu %lu %lu %lu %u %u %u %u\n",
+      if (fscanf(f, "%le %le %le %u %u %u %u %u %u %u %zu %zu %zu %zu %zu %u "
+        "%u %u %u %le %le %le\n",
         &utime, &stime, &rtime, &stats.num_partitions,
         &stats.num_iterations, &stats.num_initial_pairs, &stats.num_final_pairs,
         &stats.num_maxflow,
         &stats.num_p_invariant_fails, &stats.num_sig_arc_fails, &stats.mem_relation_map,
         &stats.mem_partition_map, &stats.mem_relation,
         &stats.mem_maxflow, &stats.mem_model, &stats.min_complexity, &stats.max_complexity,
-        &stats.num_nets_cached, &stats.num_cache_hits) < 19)
+        &stats.num_nets_cached, &stats.num_cache_hits,
+        &utime_stdev, &stime_stdev, &rtime_stdev) < 22)
       {
-        utime = -1, rtime = -1, stime = -1;
+        utime = 0.0/0.0, rtime = 0.0/0.0, stime = 0.0/0.0;
+        utime_stdev = 0.0/0.0, stime_stdev = 0.0/0.0, rtime_stdev = 0.0/0.0;
         memset(&stats, 0, sizeof(stats));
         fprintf(stderr, "Warning: Benchmark of %s, cfg %ld failed\n", *i, flagvector[n]);
       }
@@ -1758,6 +1803,9 @@ int main(int argc, char *argv[])
       if (tabulate[12]) result[12][n + (m * flagvectorsize)] = double(stats.max_complexity);
       if (tabulate[13]) result[13][n + (m * flagvectorsize)] = double(stats.num_nets_cached);
       if (tabulate[14]) result[14][n + (m * flagvectorsize)] = double(stats.num_cache_hits);
+      if (tabulate[15]) result[15][n + (m * flagvectorsize)] = utime_stdev;
+      if (tabulate[16]) result[16][n + (m * flagvectorsize)] = stime_stdev;
+      if (tabulate[17]) result[17][n + (m * flagvectorsize)] = rtime_stdev;
     }
     
     if (tabulate[3] && rmap_extra) result_rmap[m] = double(stats.mem_relation_map);
@@ -1786,6 +1834,9 @@ int main(int argc, char *argv[])
     if (result[0]) unit_transform(result[0], flagvectorsize * files.size(), t_unit, false);
     if (result[1]) unit_transform(result[1], flagvectorsize * files.size(), t_unit, false);
     if (result[2]) unit_transform(result[2], flagvectorsize * files.size(), t_unit, false);
+    if (result[15]) unit_transform(result[15], flagvectorsize * files.size(), t_unit, false);
+    if (result[16]) unit_transform(result[16], flagvectorsize * files.size(), t_unit, false);
+    if (result[17]) unit_transform(result[17], flagvectorsize * files.size(), t_unit, false);
   }
   
   // Adjust space unit (determine best choice if not given)
@@ -1811,9 +1862,11 @@ int main(int argc, char *argv[])
         if (len < (int) (sizeof(filename)+4))
           filename[len-4] = '\0';
         generate_latex(f, result[n], flagvectorsize, files.size(), flagvector, cfg_titles, files,
-                       (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), title,
-                       (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])), model_states,
-                       model_transitions, model_actions);
+                       n == 3 ? result_rmap : 0, "Map size",
+                       n > 3 && n < 15 ? 0 : precision, filename,
+                       n == 3 ? s_units[s_unit]
+                                : (n > 3 && n < 15 ? "" : t_units[t_unit]),
+                       model_states,model_transitions,model_actions, averages);
         fclose(f);
       }
     }
@@ -1867,21 +1920,27 @@ int main(int argc, char *argv[])
     {
       if (tabulate[n])
       {
-        title_len = strlen(title) + strlen(datanames[n]) + strlen(n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])) + 7;
+        title_len = strlen(title) + strlen(datanames[n]) +
+                (n > 3 && n < 15 ? 0 : strlen(n == 3 ? s_units[s_unit]
+                                                    : t_units[t_unit])) + 7;
         title_fill = find_table_width(result[n], flagvectorsize, files.size(), flagvector, cfg_titles, files,
-                                      (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), model_states,
+                                      n == 3 ? result_rmap : 0, "Map size",
+                                      n>3 && n<15 ? 0 : precision,model_states,
                                       model_transitions, model_actions) - title_len;
         
         if (title_fill <= 4) title_fill = 4;
         total = (title_fill / 2) + (title_fill % 2);
         while (total--) fputs("-", stdout);
-        fprintf(stdout, " %s: %s (%s) ", title, datanames[n], (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])));
+        fprintf(stdout, " %s: %s (%s) ", title, datanames[n],
+                        n == 3 ? s_units[s_unit]
+                                : (n > 3 && n < 15 ? "" : t_units[t_unit]));
         total = title_fill / 2;
         while (total--) fputs("-", stdout);
         fputs("\n", stdout);
         
         generate_plain(stdout, result[n], flagvectorsize, files.size(), flagvector, cfg_titles, files,
-                       (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), model_states,
+                       n == 3 ? result_rmap : 0, "Map size",
+                       n > 3 && n < 15 ? 0 : precision, model_states,
                        model_transitions, model_actions);
         
         total = title_len + title_fill;

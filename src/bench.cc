@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -31,6 +32,9 @@ Benchmark::Benchmark()
   tu = 0;
   ts = 0;
   tr = 0;
+  tu_stdev = NULL;
+  ts_stdev = NULL;
+  tr_stdev = NULL;
   ss = 0;
   rows = 0;
   cb_progress = 0;
@@ -41,6 +45,9 @@ Benchmark::~Benchmark()
   if (tu) delete [] tu;
   if (ts) delete [] ts;
   if (tr) delete [] tr;
+  if (NULL != tu_stdev) delete [] tu_stdev;
+  if (NULL != ts_stdev) delete [] ts_stdev;
+  if (NULL != tr_stdev) delete [] tr_stdev;
   if (ss) delete [] ss;
 }
 
@@ -52,18 +59,29 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
 {
   rusage r1, r2, rc1, rc2;
   timeval t1, t2;
-  double t_usr = 0.0, t_sys = 0.0, t_real = 0.0;
   std::set<std::pair<int,int> > resultset;
   std::set<std::pair<int,int> >::iterator i;
   
   if (tu) delete [] tu;
   if (ts) delete [] ts;
   if (tr) delete [] tr;
+  if (NULL != tu_stdev) delete [] tu_stdev;
+  if (NULL != ts_stdev) delete [] ts_stdev;
+  if (NULL != tr_stdev) delete [] tr_stdev;
   if (ss) delete [] ss;
   
   tu = new double[flagvectorsize];
   ts = new double[flagvectorsize];
   tr = new double[flagvectorsize];
+  if (averages > 1) {
+    tu_stdev = new double[flagvectorsize];
+    ts_stdev = new double[flagvectorsize];
+    tr_stdev = new double[flagvectorsize];
+  } else {
+    tu_stdev = NULL;
+    ts_stdev = NULL;
+    tr_stdev = NULL;
+  }
   ss = new SimulationStatistics[flagvectorsize];
   rows = flagvectorsize;
   
@@ -72,9 +90,10 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
   
   for (unsigned int m = 0; m < flagvectorsize; ++m)
   {
-    t_usr = 0.0;
-    t_sys = 0.0;
-    t_real = 0.0;
+    double t_usr = 0.0, t_sys = 0.0, t_real = 0.0;
+    double t_usr_estimate = 0.0, t_sys_estimate = 0.0, t_real_estimate = 0.0;
+    double t_usr_square = 0.0, t_sys_square = 0.0, t_real_square = 0.0;
+
     for (unsigned int n = 0; n < averages; ++n)
     {
       getrusage(RUSAGE_SELF, &r1);
@@ -85,6 +104,29 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
       getrusage(RUSAGE_CHILDREN, &rc2);
       gettimeofday(&t2, 0);
       
+      /* numerically stable calculation of the standard deviation: The time
+      of the first experiment is used as an estimate of the mean. Then, the
+      variance is calculated for (time - estimate). This generally leads to
+      smaller numbers, so there will be less cancellation than in a naive
+      implementation of "expectation of square minus square of expectation".
+
+      This algorithm is copied from
+      https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Computing_shifted_data
+      which refers to T.F. Chan, G.H. Golub and R.J. LeVeque: Algorithms for
+      computing the sample variance: Analysis and recommendations. The American
+      Statistician, 37(3)1983. pp. 242--247. (See in particular Section 3 of
+      that article.) */
+
+      double tempt_usr = double(r2.ru_utime.tv_sec) - double(r1.ru_utime.tv_sec)
+            +  double(rc2.ru_utime.tv_sec) - double(rc1.ru_utime.tv_sec)
+            + ((double(r2.ru_utime.tv_usec) * 0.000001) - (double(r1.ru_utime.tv_usec) * 0.000001))
+            + ((double(rc2.ru_utime.tv_usec) * 0.000001) - (double(rc1.ru_utime.tv_usec) * 0.000001));
+      double tempt_sys = double(r2.ru_stime.tv_sec) - double(r1.ru_stime.tv_sec)
+            +  double(rc2.ru_stime.tv_sec) - double(rc1.ru_stime.tv_sec)
+            + ((double(r2.ru_stime.tv_usec) * 0.000001) - (double(r1.ru_stime.tv_usec) * 0.000001))
+            + ((double(rc2.ru_stime.tv_usec) * 0.000001) - (double(rc1.ru_stime.tv_usec) * 0.000001));
+      double tempt_real = double(t2.tv_sec) - double(t1.tv_sec) + ((double(t2.tv_usec) * 0.000001) - (double(t1.tv_usec) * 0.000001));
+
       if (n == 0)
       {
         memcpy(ss + m, &simulator->stats, sizeof(SimulationStatistics));
@@ -92,28 +134,38 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
         {
           for (i = resultset.begin(); i != resultset.end(); ++i) fprintf(result, "%d %d\n", i->first, i->second);
         }
+        t_usr_estimate  = tempt_usr;
+        t_sys_estimate  = tempt_sys;
+        t_real_estimate = tempt_real;
       }
       else
       {
-        if (simulator->stats.min_complexity < (ss + m)->min_complexity) (ss + m)->min_complexity = simulator->stats.min_complexity;
-        if (simulator->stats.max_complexity > (ss + m)->max_complexity) (ss + m)->max_complexity = simulator->stats.max_complexity;
+        if (simulator->stats.min_complexity < ss[m].min_complexity)
+          ss[m].min_complexity = simulator->stats.min_complexity;
+        if (simulator->stats.max_complexity > ss[m].max_complexity)
+          ss[m].max_complexity = simulator->stats.max_complexity;
+
+        tempt_usr -= t_usr_estimate;
+        t_usr += tempt_usr;
+        t_usr_square += tempt_usr * tempt_usr;
+        tempt_sys -= t_sys_estimate;
+        t_sys += tempt_sys;
+        t_sys_square += tempt_sys * tempt_sys;
+        tempt_real -= t_real_estimate;
+        t_real += tempt_real;
+        t_real_square += tempt_real * tempt_real;
       }
-      
-      t_usr += double((r2.ru_utime.tv_sec) - (r1.ru_utime.tv_sec))
-            +  double((rc2.ru_utime.tv_sec) - (rc1.ru_utime.tv_sec))
-            + ((double(r2.ru_utime.tv_usec) * 0.000001) - (double(r1.ru_utime.tv_usec) * 0.000001))
-            + ((double(rc2.ru_utime.tv_usec) * 0.000001) - (double(rc1.ru_utime.tv_usec) * 0.000001));
-      t_sys += double((r2.ru_stime.tv_sec) - (r1.ru_stime.tv_sec))
-            +  double((rc2.ru_stime.tv_sec) - (rc1.ru_stime.tv_sec))
-            + ((double(r2.ru_stime.tv_usec) * 0.000001) - (double(r1.ru_stime.tv_usec) * 0.000001))
-            + ((double(rc2.ru_stime.tv_usec) * 0.000001) - (double(rc1.ru_stime.tv_usec) * 0.000001));
-      t_real += double((t2.tv_sec) - (t1.tv_sec)) + ((double(t2.tv_usec) * 0.000001) - (double(t1.tv_usec) * 0.000001));
       
       if (cb_progress) (*cb_progress)(n + (m * averages), averages * flagvectorsize);
     }
     
-    tu[m] = t_usr / double(averages);
-    ts[m] = t_sys / double(averages);
-    tr[m] = t_real / double(averages);
+    tu[m] = t_usr  / averages + t_usr_estimate ;
+    ts[m] = t_sys  / averages + t_sys_estimate ;
+    tr[m] = t_real / averages + t_real_estimate;
+    if (averages > 1) {
+      tu_stdev[m] = sqrt((t_usr_square  - t_usr  * t_usr  / averages) / (averages - 1));
+      ts_stdev[m] = sqrt((t_sys_square  - t_sys  * t_sys  / averages) / (averages - 1));
+      tr_stdev[m] = sqrt((t_real_square - t_real * t_real / averages) / (averages - 1));
+    }
   }
 }

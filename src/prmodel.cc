@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -133,7 +134,7 @@ void MarkovChain::Parse(FILE *f, bool con_time)
         last_target = -1;
       if (source < 0 || source < last_source || source >= n
                   || target <= last_target || target >= n
-                  || prob < 0.0 || (! continuous && prob > 1.0))
+                  || prob < 0.0 || (!continuous && prob > 1.0))
       {
         fprintf(stderr, "Illegal line format in line: ``%s''\n", in_line);
         if (source < 0 || source < last_source || source >= n)
@@ -145,7 +146,7 @@ void MarkovChain::Parse(FILE *f, bool con_time)
         else if (prob < 0.0)
           fprintf(stderr, "The %s %g should be >= 0.\n",
                       continuous ? "rate" : "probability", prob);
-        else if (! continuous && prob > 1.0)
+        else if (!continuous && prob > 1.0)
           fprintf(stderr, "The probability %g should be <= 1.\n", prob);
         exit(EXIT_FAILURE);
       }
@@ -274,7 +275,7 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
       target = strtol(next, &next, 10);
       prob = strtod(next, 0);
       if (target <= last_target || target >= n
-                 || prob < 0.0 || (! con_time && prob > 1.0))
+                 || prob < 0.0 || (!con_time && prob > 1.0))
       {
         fprintf(stderr, "Illegal line format in line: ``%s''\n", in_line);
         if (target <= last_target || target >= n)
@@ -283,7 +284,7 @@ void ProbabilisticAutomaton::Parse(FILE *f, bool con_time)
         else if (prob < 0.0)
           fprintf(stderr, "The %s %g should be >= 0.\n",
                       con_time ? "rate" : "probability", prob);
-        else if (! con_time && prob > 1.0)
+        else if (!con_time && prob > 1.0)
           fprintf(stderr, "The probability %g should be <= 1.\n", prob);
         exit(EXIT_FAILURE);
       }

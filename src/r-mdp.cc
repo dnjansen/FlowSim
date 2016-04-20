@@ -145,7 +145,7 @@ ProbabilisticAutomaton *RandomPA(int n, int a, int b, int ac, int ma, int Ma, do
     for (j = 0; j < transitions; ++j, ++k)
     {
       mdp->cols[k] = cols[k];
-      mdp->non_zeros[k] = (1.0 / transitions);
+      mdp->non_zeros[k] = 1.0 / transitions;
     }
   }
   

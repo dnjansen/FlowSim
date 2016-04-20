@@ -143,7 +143,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
     {
       for (int m = 0; m < nBlocks; ++m)
       {
-        if (rmap(n, m) && n != m) fprintf(qlog, " (%d,%d)", n, m);
+        if (n != m && rmap(n, m)) fprintf(qlog, " (%d,%d)", n, m);
       }
     }
     fprintf(qlog, "\n\n");
@@ -166,7 +166,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   {
     for (int m = 0; m < nBlocks; ++m)
     {
-      if (rmap(n, m) && n != m) fprintf(qlog, " (%d,%d)", n, m);
+      if (n != m && rmap(n, m)) fprintf(qlog, " (%d,%d)", n, m);
     }
   }
   fprintf(qlog, "\n\n");
@@ -230,7 +230,7 @@ void StrongSimulation_Quotient::InitializeActionMasks()
   }
   
   a = ((ProbabilisticAutomaton*)model)->da;
-  action_mask_pitch = (a >> 3) + ((a & 0x7) ? 1 : 0);
+  action_mask_pitch = (CHAR_BIT - 1 + a) / CHAR_BIT;
   action_masks = new unsigned char[nStates * action_mask_pitch];
   memset(action_masks, 0, nStates * action_mask_pitch);
   

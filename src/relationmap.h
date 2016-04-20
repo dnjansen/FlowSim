@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -34,46 +35,121 @@ class RelationMap
 {
 public:
   RelationMap() { buffer[0] = 0, buffer[1] = 0, report = 0; }
-  ~RelationMap() { if (buffer[0]) delete [] buffer[0]; if (buffer[1]) delete [] buffer[1]; }
+  ~RelationMap() { clear_mem(); }
+
+  void clear_mem()
+  {
+    if (NULL != buffer[0])
+    {
+      delete [] buffer[0];
+      buffer[0] = NULL;
+    }
+    if (NULL != buffer[1])
+    {
+      delete [] buffer[1];
+      buffer[1] = NULL;
+    }
+  }
   
   // Allocate a map with s^2 cells. Attempting to access cells outside of that
   // range will cause an assertion failure if ub is less than s. If ub is greater
   // than s, accessing cells between s and ub will cause more memory to be allocated
   // on demand.  Accessing cells greater than ub will also cause an assertion failure.
-  void Create(unsigned int s, unsigned int ub = 0)
+  void Create(unsigned int s, unsigned int ub = 0, bool init = false)
   {
-    if (buffer[0]) delete [] buffer[0];
-    if (buffer[1]) delete [] buffer[1];
-    size = ((s * s) >> 3) + (((s * s) & 0x7) ? 1 : 0);
-    upperbound = ((ub * ub) >> 3) + (((ub * ub) & 0x7) ? 1 : 0);
-    buffer[0] = new unsigned char[size];
+    if (s >= (1U << (sizeof(size) * CHAR_BIT / 2)))
+    {
+      // Strictly speaking, a slightly larger s or ub might be acceptable
+      // if one calculates size and upperbound in a special way.
+      // (However, the square of any index should fit into an unsigned int. See
+      // _index() below.)
+      fprintf(stderr, "Error: RelationMap::Create(%u,%u), size too large\n", s,
+			ub);
+      exit(EXIT_FAILURE);
+    }
+    if (ub >= (1U << (sizeof(size) * CHAR_BIT / 2)))
+    {
+      fprintf(stderr, "Warning: RelationMap::Create(%u,%u), upper bound too "
+			"large; changed to %u\n", s, ub,
+			(1U << (sizeof(size) * CHAR_BIT / 2)) - 1);
+      ub = (1U << (sizeof(size) * CHAR_BIT / 2)) - 1;
+    }
+    if (NULL != buffer[0])
+    {
+      delete [] buffer[0];
+    }
+    if (NULL != buffer[1])
+    {
+      delete [] buffer[1];
+    }
+    size = (CHAR_BIT - 1 + s * s) / CHAR_BIT;
+    upperbound = (CHAR_BIT - 1 + ub * ub) / CHAR_BIT;
+    if (report)
+    {
+      buffer[0] = NULL;
+    }
+    else
+    {
+      buffer[0] = new unsigned char[size];
+      memset(buffer[0], init ? (char) -1 : '\0', sizeof(unsigned char) * size);
+    }
     buffer[1] = new unsigned char[size];
-    memset(buffer[0], 0, sizeof(unsigned char) * size);
-    memset(buffer[1], 0, sizeof(unsigned char) * size);
-    report = 0;
+    memset(buffer[1], init ? (char) -1 : '\0', sizeof(unsigned char) * size);
   }
   
   // Set whether operator() reports the working state or the committed state
-  void ReportCurrent(bool b) { report = (b ? 1 : 0); }
+  void ReportCurrent(bool b)
+  {
+    if (b)
+      report = 1;
+    else
+    {
+      if (NULL == buffer[0] && NULL != buffer[1])
+      {
+        buffer[0] = new unsigned char[size];
+        memset(buffer[0], 0, size);
+      }
+      report = 0;
+    }
+  }
   
   // Set/Clear operations
   void Set(unsigned int x, unsigned int y)
-  { unsigned int i = _index(x, y); _assertbyte(i >> 3); buffer[1][i >> 3] |=  (1 << (i & 0x7)); }
+  {
+    unsigned int i = _index(x, y);
+    _assertbyte(i / CHAR_BIT);
+    buffer[1][i / CHAR_BIT] |= 1 << (i % CHAR_BIT);
+  }
   void Clear(unsigned int x, unsigned int y)
-  { unsigned int i = _index(x, y); _assertbyte(i >> 3); buffer[1][i >> 3] &= ~(1 << (i & 0x7)); }
+  {
+    unsigned int i = _index(x, y);
+    if (i / CHAR_BIT < size)
+      buffer[1][i / CHAR_BIT] &= ~(1 << (i % CHAR_BIT));
+  }
   
   // Update base state with working state
-  void Commit() { memcpy(buffer[0], buffer[1], sizeof(unsigned char) * size); }
+  void Commit()
+  {
+    if (NULL == buffer[0])
+    {
+      /* if (report) return; */
+      buffer[0] = new unsigned char[size];
+    }
+    memcpy(buffer[0], buffer[1], size);
+  }
   
   // Check if changes have been made in the working copy since the last commit
-  bool MapChanged() { return (memcmp(buffer[0], buffer[1], sizeof(unsigned char) * size) != 0); }
+  bool MapChanged() {
+    return NULL != buffer[0] &&
+	       memcmp(buffer[0], buffer[1], sizeof(unsigned char) * size) != 0;
+  }
   
   // Retrieve the value of a cell. If out of range (even if below upper bound), false is returned.
   bool operator()(unsigned int x, unsigned int y)
   {
     unsigned int i = _index(x, y);
-    if ((i >> 3) >= size) return false;
-    return buffer[report][i >> 3] & (1 << (i & 0x7));
+    if (i / CHAR_BIT >= size) return false;
+    return buffer[report][i / CHAR_BIT] & (1 << (i % CHAR_BIT));
   }
   
   // Return memory used by this class instance
@@ -94,11 +170,14 @@ private:
     if (i < size) return;
     assert(size < upperbound && i < upperbound);
     
-    tmp = new unsigned char[i + 1];
-    memcpy(tmp, buffer[0], sizeof(unsigned char) * size);
-    memset(tmp + size, 0, i + 1 - size);
-    delete [] buffer[0];
-    buffer[0] = tmp;
+    if (NULL != buffer[0])
+    {
+      tmp = new unsigned char[i + 1];
+      memcpy(tmp, buffer[0], sizeof(unsigned char) * size);
+      memset(tmp + size, 0, i + 1 - size);
+      delete [] buffer[0];
+      buffer[0] = tmp;
+    }
     
     tmp = new unsigned char[i + 1];
     memcpy(tmp, buffer[1], sizeof(unsigned char) * size);

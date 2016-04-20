@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -45,6 +46,7 @@ unsigned int StrongSimulation_PA::Simulate(ProbabilisticModel *model, std::set<s
   row_starts = new int[m->na + 1];
   memcpy(row_starts, m->row_starts, sizeof(int) * (m->na + 1));
   
+  rmap.ReportCurrent(false);
   rmap.Create(1, n_states);
   
   action_masks = 0;
@@ -178,6 +180,7 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
   }
   
   // Load the hypothesis into the relation map
+  rmap.ReportCurrent(true);
   rmap.Create(n_states);
   
   size_of_relation = hypothesis.size();
@@ -186,8 +189,6 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
   {
     rmap.Set(hi->first, hi->second);
   }
-  
-  rmap.Commit();
   
   // Decide simulation for all non-identity pairs, based on the relation
   // being tested, and match the respective results against the hypothesis.
@@ -214,6 +215,8 @@ bool StrongSimulation_PA::Verify(ProbabilisticModel *model, std::set<std::pair<i
     delete [] dist_sums;
   }
   
+  rmap.clear_mem();
+
   return global_res;
 }
 #endif//WITH_VERIFIER
@@ -224,9 +227,9 @@ int StrongSimulation_PA::BuildRelationMap_PA()
   int m, n, size = 0;
   bool forward, backward;
 
-  for (m = 0; m < n_states - 1; ++m)
+  for (m = n_states; --m > 0; )
   {
-    for (n = m + 1; n < n_states; ++n)
+    for (n = 0; n < m; ++n)
     {
       if (Label(m) == Label(n))
       {
@@ -238,13 +241,17 @@ int StrongSimulation_PA::BuildRelationMap_PA()
 #ifndef OPT_PARTITION
         for (int i = 0; i < action_mask_pitch && (forward || backward); ++i)
         {
-          if ((action_masks[(m * action_mask_pitch) + i] ^ action_masks[(n * action_mask_pitch) + i]) & ~(action_masks[(n * action_mask_pitch) + i])) forward = false;
-          if ((action_masks[(n * action_mask_pitch) + i] ^ action_masks[(m * action_mask_pitch) + i]) & ~(action_masks[(m * action_mask_pitch) + i])) backward = false;
+          if (action_masks[m * action_mask_pitch + i]
+                      & ~action_masks[n * action_mask_pitch + i])
+            forward = false;
+          if (action_masks[n * action_mask_pitch + i]
+                      & ~action_masks[m * action_mask_pitch + i])
+            backward = false;
         }
 #endif
         
-        if (forward)  rmap.Set(m, n), ++size;
         if (backward) rmap.Set(n, m), ++size;
+        if (forward)  rmap.Set(m, n), ++size;
       }
     }
   }
@@ -269,9 +276,9 @@ int StrongSimulation_PA::BuildRelationMap_CPA()
     for (m = row_starts[n]; m < row_starts[n + 1]; ++m) non_zeros[m] /= dist_sums[n];
   }
 
-  for (m = 0; m < n_states - 1; ++m)
+  for (m = n_states; --n > 0; )
   {
-    for (n = m + 1; n < n_states; ++n)
+    for (n = 0; n < m; ++n)
     {
       if (Label(m) == Label(n))
       {
@@ -283,13 +290,17 @@ int StrongSimulation_PA::BuildRelationMap_CPA()
 #ifndef OPT_PARTITION
         for (int i = 0; i < action_mask_pitch && (forward || backward); ++i)
         {
-          if ((action_masks[(m * action_mask_pitch) + i] ^ action_masks[(n * action_mask_pitch) + i]) & ~(action_masks[(n * action_mask_pitch) + i])) forward = false;
-          if ((action_masks[(n * action_mask_pitch) + i] ^ action_masks[(m * action_mask_pitch) + i]) & ~(action_masks[(m * action_mask_pitch) + i])) backward = false;
+          if (action_masks[m * action_mask_pitch + i]
+                      & ~action_masks[n * action_mask_pitch + i])
+            forward = false;
+          if (action_masks[n * action_mask_pitch + i]
+                      & ~action_masks[m * action_mask_pitch + i])
+            backward = false;
         }
 #endif
         
-        if (forward)  rmap.Set(m, n), ++size;
         if (backward) rmap.Set(n, m), ++size;
+        if (forward)  rmap.Set(m, n), ++size;
       }
     }
   }
@@ -463,7 +474,9 @@ bool StrongSimulation_PA::DecideStrongSimulation(Pair *p)
   // This test can't be done in the initial relation if we are using state partitioning
   for (int i = 0; i < action_mask_pitch; ++i)
   {
-    if ((action_masks[(p->x * action_mask_pitch) + i] ^ action_masks[(p->y * action_mask_pitch) + i]) & ~(action_masks[(p->y * action_mask_pitch) + i])) return false;
+    if (action_masks[p->x * action_mask_pitch + i]
+                & ~action_masks[p->y * action_mask_pitch + i])
+      return false;
   }
 #endif
   
@@ -610,7 +623,7 @@ void StrongSimulation_PA::InitializeActionMasks()
 {
   int i, j;
   
-  action_mask_pitch = (m->da >> 3) + ((m->da & 0x7) ? 1 : 0);
+  action_mask_pitch = (CHAR_BIT - 1 + m->da) / CHAR_BIT;
   action_masks = new unsigned char[n_states * action_mask_pitch];
   memset(action_masks, 0, n_states * action_mask_pitch);
   
@@ -618,7 +631,8 @@ void StrongSimulation_PA::InitializeActionMasks()
   {
     for (j = state_starts[i]; j < state_starts[i+1]; ++j)
     {
-      action_masks[(i * action_mask_pitch) + (actions[j] >> 3)] |= (1 << (actions[j] & 0x7));
+      action_masks[i * action_mask_pitch + actions[j] / CHAR_BIT] |=
+                                                1 << (actions[j] % CHAR_BIT);
     }
   }
 }

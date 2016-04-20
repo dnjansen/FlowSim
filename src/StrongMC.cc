@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -41,6 +42,7 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   row_starts = m->row_starts;
   n_states = m->n;
   
+  rmap.ReportCurrent(false);
   rmap.Create(1, n_states);
   
   // Build initial relation
@@ -172,6 +174,7 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
   }
   
   // Load the hypothesis into the relation map
+  rmap.ReportCurrent(true);
   rmap.Create(n_states);
   
   size_of_relation = hypothesis.size();
@@ -180,8 +183,6 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
   {
     rmap.Set(hi->first, hi->second);
   }
-  
-  rmap.Commit();
   
   // Decide simulation for all non-identity pairs, based on the relation
   // being tested, and match the respective results against the hypothesis.
@@ -218,6 +219,8 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
     delete [] dist_sums;
   }
   
+  rmap.clear_mem();
+
   return global_res;
 }
 #endif//WITH_VERIFIER

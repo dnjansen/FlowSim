@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -48,7 +49,11 @@ public:
   ModelBuilder() { transitions = 0, dist = 0; }
   ~ModelBuilder() {}
   
-  void Add(int from, int to, double p) { ++transitions; _tmc.insert(make_pair(from,make_pair(to,p))); }
+  void Add(int from, int to, double p)
+  {
+    ++transitions;
+    _tmc[from].insert(make_pair(to, p));
+  }
   void Add(int from, int action, int to, double p)
   {
     ++transitions;
@@ -60,8 +65,7 @@ public:
   MarkovChain *BuildMC(int states, double*)
   {
     int n, m;
-    multimap<int,pair<int,double> >::iterator i;
-    pair<multimap<int,pair<int,double> >::iterator, multimap<int,pair<int,double> >::iterator> ij;
+    map<int,double>::iterator i;
     MarkovChain *mc = new MarkovChain;
     mc->n = states;
     mc->nnz = transitions;
@@ -70,12 +74,11 @@ public:
     mc->non_zeros = new double[transitions];
     for (n = 0, m = 0; n < states; ++n)
     {
-      ij = _tmc.equal_range(n);
       mc->row_starts[n] = m;
-      for (i = ij.first; i != ij.second; ++i)
+      for (i = _tmc[n].begin(); i != _tmc[n].end(); ++i)
       {
-        mc->cols[m] = i->second.first;
-        mc->non_zeros[m] = i->second.second;
+        mc->cols[m] = i->first;
+        mc->non_zeros[m] = i->second;
         ++m;
       }
     }
@@ -136,7 +139,7 @@ public:
   }
   
 private:
-  multimap<int,pair<int,double> > _tmc;
+  map<int,map<int,double> > _tmc;
   map<int,multimap<int,pair<int,double> > > _tpa;
   set<int> actions;
   int transitions, dist;

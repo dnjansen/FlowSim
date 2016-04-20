@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -123,10 +124,12 @@ protected:
   }
   inline bool Act_Subseteq(int s1, int s2)
   {
+    s1 *= action_mask_pitch;
+    s2 *= action_mask_pitch;
     if (!action_masks) return true;
     for (int i = 0; i < action_mask_pitch; ++i)
     {
-      if ((action_masks[(s1 * action_mask_pitch) + i] ^ action_masks[(s2 * action_mask_pitch) + i]) & ~(action_masks[(s2 * action_mask_pitch) + i])) return false;
+      if (action_masks[s1 + i] & ~action_masks[s2 + i]) return false;
     }
     return true;
   }

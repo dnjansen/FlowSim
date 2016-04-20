@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -33,12 +34,18 @@ public:
   CompactMaxFlow();
   virtual ~CompactMaxFlow();
   
-  virtual bool CreateNetwork(int*, _T*, RelationMap*, int, int, int, int, bool&, unsigned long);
-  virtual bool CreateNetwork(int*, int *, _T*, _T*, RelationMap*, int, int, bool&, unsigned long);
+  bool CreateNetwork(int*, int *, _T*, _T*, RelationMap*, int, int, bool&, unsigned long);
+  bool CreateNetwork(int *successors, _T *probabilities, RelationMap *rmap,
+                int l0, int lc, int r0, int rc, bool &known_result,
+                unsigned long optflags)
+  {
+    return CreateNetwork(successors + l0, successors + r0, probabilities + l0,
+                probabilities + r0, rmap, lc, rc, known_result, optflags);
+  }
   
   bool UpdateNetwork(RelationMap*, bool);
   
-  virtual bool IsFlowTotal(bool = false);
+  bool IsFlowTotal(bool restart = false);
   
   bool IsCreated() { return valid; };
   void Reset() { _FreeInternals(); incomplete_flow = false; }
@@ -84,9 +91,9 @@ protected:
   void _RemoveArc(arc*, bool);
   
   int n1, n2, n_arcs;
-  unsigned char *storage;
   node *set1, *set2;
   arc *arcs;
+  arc **arc_lists;
   bool incomplete_flow, valid;
   
   _T *tpl, *tpr;

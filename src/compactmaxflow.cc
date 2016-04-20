@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -59,7 +60,7 @@ template <typename _T> _T CompactMaxFlow<_T>::precision = 0.0;
 
 template <typename _T> CompactMaxFlow<_T>::CompactMaxFlow()
 {
-  n1 = 0, n2 = 0, set1 = 0, set2 = 0, arcs = 0, storage = 0, valid = false;
+  n1 = 0, n2 = 0, set1 = 0, set2 = 0, arcs = 0, valid = false;
 #ifdef DEBUG
   space_usage = 0;
   global_space += sizeof(*this);
@@ -78,10 +79,15 @@ template <typename _T> CompactMaxFlow<_T>::~CompactMaxFlow()
 // Private routine: free memory used by internal structures
 template <typename _T> void CompactMaxFlow<_T>::_FreeInternals()
 {
-  if (storage)
+  if (NULL != set1 || NULL != arcs || NULL != arc_lists)
   {
-    delete[] storage;
-    storage = 0;
+    delete [] set1;
+    delete [] arcs;
+    delete [] arc_lists;
+    set1 = NULL;
+    set2 = NULL;
+    arcs = NULL;
+    arc_lists = NULL;
 #ifdef DEBUG
     --global_instances;
     global_space -= space_usage;
@@ -98,16 +104,10 @@ template <typename _T> void CompactMaxFlow<_T>::_FreeInternals()
 // Create a network from sparse matrix data. If known_result is true after the call, the
 // return value represents the result of the simulation, otherwise the function returns true
 // if the network was successfully created and false if there was a problem.
-template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *successors, _T *probabilities, RelationMap *rmap,
-                                        int l0, int lc, int r0, int rc, bool &known_result, unsigned long optflags)
-{
-  return CreateNetwork(successors + l0, successors + r0, probabilities + l0, probabilities + r0, rmap, lc, rc, known_result, optflags);
-}
-
 template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, _T *pl, _T *pr, RelationMap *rmap,
                                         int lc, int rc, bool &known_result, unsigned long/*optflags*/)
 {
-  int n, m, size;
+  int n, m;
   arc *pa, **ppa;
   
 #if defined(OPT_SIGNIFICIANT_ARC) || defined(OPT_P_INVARIANT)
@@ -153,21 +153,20 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
     return false;
   }
   
-  // Allocate one memory area for storage and store pointers to individual sections of that block
-  if (storage) delete [] storage;
-  size = (sizeof(node) * (n1 + n2)) + (sizeof(arc) * n_arcs) + (sizeof(arc*) * ((n_arcs * 2) + n1 + n2));
-  storage = new unsigned char[size];
-  set1 = (node*)storage;
+  set1 = new node[n1 + n2];
   set2 = set1 + n1;
-  arcs = (arc*)(set2 + n2);
+  arcs = new arc[n_arcs];
+  arc_lists = new arc*[n1+n2 + n_arcs*2];
 #ifdef DEBUG
-  space_usage = size;
+  space_usage = (sizeof(node) * (n1 + n2)) + (sizeof(arc) * n_arcs) + (sizeof(arc*) * ((n_arcs * 2) + n1 + n2));
   global_space += space_usage;
   ++global_instances;
   if (global_space > global_space_peak) global_space_peak = global_space;
 #endif//DEBUG
   
-  memset(storage, 0, size);
+  memset(set1, '\0', sizeof(node) * (n1+n2));
+  memset(arcs, '\0', sizeof(arc) * n_arcs);
+  memset(arc_lists, '\0', sizeof(arc*) * (n1+n2 + n_arcs*2));
   
 //  if (optflags & (OPT_SIGNIFICIANT_ARC | OPT_P_INVARIANT))
 #if defined(OPT_SIGNIFICIANT_ARC) || defined(OPT_P_INVARIANT)
@@ -180,7 +179,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
   
   // Fill in node data (for left set only) and arc data and connect arcs to nodes on the left
   pa = arcs;
-  ppa = (arc**)(arcs + n_arcs);
+  ppa = arc_lists;
   //if (optflags & (OPT_SIGNIFICIANT_ARC | OPT_P_INVARIANT))
 #if defined(OPT_SIGNIFICIANT_ARC) || defined(OPT_P_INVARIANT)
   {
@@ -193,7 +192,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       lsum += pl[n];
       for (m = 0; m < n2; ++m)
       {
-        if ((*rmap)(sl[n], sr[m]) || sl[n] == sr[m])
+        if (sl[n] == sr[m] || (*rmap)(sl[n], sr[m]))
         {
           relsum1[n] += pr[m];
           *ppa = (pa++);
@@ -229,7 +228,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       set1[n].id = sl[n];
       for (m = 0; m < n2; ++m)
       {
-        if ((*rmap)(sl[n], sr[m]) || sl[n] == sr[m])
+        if (sl[n] == sr[m] || (*rmap)(sl[n], sr[m]))
         {
           *ppa = (pa++);
           (*ppa)->tail = set1 + n;
@@ -281,7 +280,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       rsum += pr[n];
       for (m = 0; m < lc; ++m)
       {
-        if ((*rmap)(sl[m], sr[n]) || sl[m] == sr[n]) relsum2[n] += pl[m];
+        if (sl[m] == sr[n] || (*rmap)(sl[m], sr[n])) relsum2[n] += pl[m];
       }
     }
 #endif
@@ -362,7 +361,7 @@ template <typename _T> bool CompactMaxFlow<_T>::UpdateNetwork(RelationMap *rmap,
 {
   int n;
   
-  if (!storage || !valid) return false;
+  if (NULL==set1 || NULL==arcs || NULL==arc_lists || !valid) return false;
   if (incomplete_flow) return true;
   
   for (n = 0; n < n_arcs; ++n)
@@ -449,7 +448,8 @@ template <typename _T> bool CompactMaxFlow<_T>::IsFlowTotal(bool restart)
   
   if (incomplete_flow || !valid) return false;
   
-  if (!storage) return true; // Valid network with NULL storage encodes "always true"
+  if (NULL == set1 && NULL == arcs && NULL == arc_lists) return true;
+  // Valid network with NULL storage encodes "always true"
   
 #ifdef DEBUG
   ++global_times_invoked;
@@ -614,9 +614,11 @@ template <typename _T> void CompactMaxFlow<_T>::Dump(const char *s)
   int n, m;
   node *h;
   printf("=== %s ===\n", s);
-  if (!valid || !storage || incomplete_flow)
+  if (!valid || NULL==set1 || NULL==arcs || NULL==arc_lists || incomplete_flow)
   {
-    printf("valid=%s storage=%p incomplete_flow=%s\n", (valid ? "true" : "false"), (void*)storage, (incomplete_flow ? "true" : "false"));
+    printf("valid=%s set1=%p arcs=%p arc_lists=%p incomplete_flow=%s\n",
+                valid ? "true" : "false", (void *) set1, (void *) arcs,
+                (void *) arc_lists, incomplete_flow ? "true" : "false");
     return;
   }
   for (n = 0; n < n1; ++n)
@@ -625,7 +627,7 @@ template <typename _T> void CompactMaxFlow<_T>::Dump(const char *s)
     for (m = 0; NULL != set1[n].arcs[m]; ++m)
     {
       h = set1[n].arcs[m]->head;
-      if (h)
+      if (NULL != h)
       {
         printf("                 -- %f (%c) --> %4d[%2d] %#.10f\n", set1[n].arcs[m]->flow,
 #ifdef OPT_SIGNIFICIANT_ARC

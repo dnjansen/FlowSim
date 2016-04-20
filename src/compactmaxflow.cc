@@ -25,8 +25,6 @@
 #ifndef COMPACTMAXFLOW_CC
 #define COMPACTMAXFLOW_CC
 
-#include <cstdio>
-#include <cstring>
 #include "compactmaxflow.h"
 
 // ask explicitly for instantiations of the template:
@@ -38,9 +36,9 @@ template bool CompactMaxFlow<double>::UpdateNetwork(RelationMap *rmap,
 template CompactMaxFlow<double>::CompactMaxFlow();
 
 #ifdef DEBUG
-template <typename _T> unsigned long CompactMaxFlow<_T>::global_space = 0;
-template <typename _T> unsigned long CompactMaxFlow<_T>::global_instances = 0;
-template <typename _T> unsigned long CompactMaxFlow<_T>::global_space_peak = 0;
+template <typename _T> size_t CompactMaxFlow<_T>::global_space = 0;
+template <typename _T> size_t CompactMaxFlow<_T>::global_instances = 0;
+template <typename _T> size_t CompactMaxFlow<_T>::global_space_peak = 0;
 template <typename _T> unsigned long CompactMaxFlow<_T>::global_times_invoked = 0;
 template <typename _T> unsigned long CompactMaxFlow<_T>::global_p_inv_fails = 0;
 template <typename _T> unsigned long CompactMaxFlow<_T>::global_sig_arc_fails = 0;
@@ -58,24 +56,6 @@ template <typename _T> unsigned int  CompactMaxFlow<_T>::max_complexity = 0;
 template <typename _T> _T CompactMaxFlow<_T>::precision = 0.0;
 #endif//DISABLE_FP_APPROXIMATION
 
-template <typename _T> CompactMaxFlow<_T>::CompactMaxFlow()
-{
-  n1 = 0, n2 = 0, set1 = 0, set2 = 0, arcs = 0, valid = false;
-#ifdef DEBUG
-  space_usage = 0;
-  global_space += sizeof(*this);
-  if (global_space > global_space_peak) global_space_peak = global_space;
-#endif//DEBUG
-}
-
-template <typename _T> CompactMaxFlow<_T>::~CompactMaxFlow()
-{
-  _FreeInternals();
-#ifdef DEBUG
-  global_space -= sizeof(*this);
-#endif//DEBUG
-}
-
 // Private routine: free memory used by internal structures
 template <typename _T> void CompactMaxFlow<_T>::_FreeInternals()
 {
@@ -84,18 +64,16 @@ template <typename _T> void CompactMaxFlow<_T>::_FreeInternals()
     delete [] set1;
     delete [] arcs;
     delete [] arc_lists;
+    RegisterMemFree((n1 + n2) * sizeof(*set1) + n_arcs * sizeof(*arcs)
+                + (n1 + n2 + n_arcs*2) * sizeof(*arc_lists));
     set1 = NULL;
     set2 = NULL;
     arcs = NULL;
     arc_lists = NULL;
 #ifdef DEBUG
     --global_instances;
-    global_space -= space_usage;
-  }
-  space_usage = 0;
-#else//DEBUG
-  }
 #endif//DEBUG
+  }
   valid = false;
   n1 = n2 = 0;
   n_arcs = 0;
@@ -153,15 +131,14 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
     return false;
   }
   
+  RegisterMemAlloc((n1 + n2) * sizeof(*set1) + n_arcs * sizeof(*arcs)
+              + (n1 + n2 + n_arcs*2) * sizeof(*arc_lists));
   set1 = new node[n1 + n2];
   set2 = set1 + n1;
   arcs = new arc[n_arcs];
   arc_lists = new arc*[n1+n2 + n_arcs*2];
 #ifdef DEBUG
-  space_usage = (sizeof(node) * (n1 + n2)) + (sizeof(arc) * n_arcs) + (sizeof(arc*) * ((n_arcs * 2) + n1 + n2));
-  global_space += space_usage;
   ++global_instances;
-  if (global_space > global_space_peak) global_space_peak = global_space;
 #endif//DEBUG
   
   memset(set1, '\0', sizeof(node) * (n1+n2));
@@ -171,6 +148,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
 //  if (optflags & (OPT_SIGNIFICIANT_ARC | OPT_P_INVARIANT))
 #if defined(OPT_SIGNIFICIANT_ARC) || defined(OPT_P_INVARIANT)
   {
+    RegisterMemAlloc((n1 + n2) * sizeof(*relsum1));
     relsum1 = new _T[n1 + n2];
     relsum2 = relsum1 + n1;
     lsum = 0, rsum = 0;
@@ -211,6 +189,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       if (set1[n].label == 0 && _Tless(0, set1[n].excess))
       {
         delete [] relsum1;
+        RegisterMemFree((n1 + n2) * sizeof(*relsum1));
         relsum1 = relsum2 = NULL;
         _FreeInternals();
         known_result = true;
@@ -296,6 +275,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
       ++global_p_inv_fails;
 #endif//DEBUG
       delete [] relsum1;
+      RegisterMemFree((n1 + n2) * sizeof(*relsum1));
       relsum1 = relsum2 = NULL;
       _FreeInternals();
       known_result = true;
@@ -315,6 +295,7 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
         ++global_p_inv_fails;
 #endif//DEBUG
         delete [] relsum1;
+        RegisterMemFree((n1 + n2) * sizeof(*relsum1));
         relsum1 = relsum2 = NULL;
         _FreeInternals();
         known_result = true;
@@ -324,13 +305,14 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
 #ifdef OPT_SIGNIFICIANT_ARC
       //if (optflags & OPT_SIGNIFICIANT_ARC)
       {
-        arcs[n].significiant = _Tless(relsum1[l] - set2[r].excess, set1[l].excess)
+        arcs[n].significiant = _Tless(relsum1[l]-set2[r].excess,set1[l].excess)
                                 || _Tless(relsum2[r] + aux - set1[l].excess, set2[r].excess);
       }
 #endif
     }
     
     delete [] relsum1;
+    RegisterMemFree((n1 + n2) * sizeof(*relsum1));
     relsum1 = relsum2 = NULL;
   }
 #endif

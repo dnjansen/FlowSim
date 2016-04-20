@@ -31,8 +31,11 @@
 template <typename _T> class CompactMaxFlow
 {
 public:
-  CompactMaxFlow();
-  virtual ~CompactMaxFlow();
+  CompactMaxFlow()
+  {
+    n1 = 0, n2 = 0, set1=NULL, set2=NULL, arcs=NULL, arc_lists=NULL, valid=false;
+  }
+  ~CompactMaxFlow() { _FreeInternals(); }
   
   bool CreateNetwork(int*, int *, _T*, _T*, RelationMap*, int, int, bool&, unsigned long);
   bool CreateNetwork(int *successors, _T *probabilities, RelationMap *rmap,
@@ -101,11 +104,12 @@ protected:
   _T aux;
   
 #ifdef DEBUG
-  unsigned long space_usage;
   int complexity;
   
 public:
-  static unsigned long global_space, global_instances, global_space_peak, global_times_invoked, global_p_inv_fails, global_sig_arc_fails;
+  static size_t global_space, global_instances, global_space_peak;
+  static unsigned long global_times_invoked, global_p_inv_fails,
+              global_sig_arc_fails;
   static unsigned int min_complexity, max_complexity;
   
   static void ResetStats()
@@ -120,8 +124,41 @@ public:
     max_complexity = 0;
   }
   
+  static void CollectStats(SimulationStatistics *stats)
+  {
+    if (0 != global_space)
+      fprintf(stderr, "*** Memory leak: CompactMaxFlow<...>::global_space "
+                  "is %zd B ***\n", global_space);
+    stats->mem_maxflow += global_space_peak;
+    stats->mem_model -= global_space_peak;
+    stats->num_maxflow = global_times_invoked;
+    stats->num_p_invariant_fails = global_p_inv_fails;
+    stats->num_sig_arc_fails = global_sig_arc_fails;
+    stats->min_complexity = min_complexity;
+    stats->max_complexity = max_complexity;
+    ResetStats();
+  }
+
+  static inline void RegisterMemAlloc(size_t size)
+  {
+    global_space += size;
+    if (global_space_peak < global_space)
+      global_space_peak = global_space;
+    ::RegisterMemAlloc(size);
+  }
+
+  static inline void RegisterMemFree(size_t size)
+  {
+    global_space -= size;
+    ::RegisterMemFree(size);
+  }
+
   void Dump(const char*);
   int GetComplexity() { return complexity; }
+#else//DEBUG
+public:
+  static inline void RegisterMemAlloc(size_t size) {}
+  static inline void RegisterMemFree(size_t size) {}
 #endif//DEBUG
 };
 

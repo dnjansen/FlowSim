@@ -29,6 +29,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "stats.h"
+
 // Store a relation map as a table of bitsets. Changes have to be committed before
 // they are returned by the () operator.
 class RelationMap
@@ -42,11 +44,13 @@ public:
     if (NULL != buffer[0])
     {
       delete [] buffer[0];
+      RegisterMemFree(size * sizeof(**buffer));
       buffer[0] = NULL;
     }
     if (NULL != buffer[1])
     {
       delete [] buffer[1];
+      RegisterMemFree(size * sizeof(**buffer));
       buffer[1] = NULL;
     }
   }
@@ -77,19 +81,23 @@ public:
     if (NULL != buffer[0])
     {
       delete [] buffer[0];
+      RegisterMemFree(size * sizeof(**buffer));
     }
     if (NULL != buffer[1])
     {
       delete [] buffer[1];
+      RegisterMemFree(size * sizeof(**buffer));
     }
     size = (CHAR_BIT - 1 + s * s) / CHAR_BIT;
     upperbound = (CHAR_BIT - 1 + ub * ub) / CHAR_BIT;
     if (report)
     {
       buffer[0] = NULL;
+      RegisterMemAlloc(size * sizeof(**buffer));
     }
     else
     {
+      RegisterMemAlloc(size * (sizeof(**buffer) * 2));
       buffer[0] = new unsigned char[size];
       memset(buffer[0], init ? (char) -1 : '\0', sizeof(unsigned char) * size);
     }
@@ -106,6 +114,7 @@ public:
     {
       if (NULL == buffer[0] && NULL != buffer[1])
       {
+        RegisterMemAlloc(size * sizeof(**buffer));
         buffer[0] = new unsigned char[size];
         memset(buffer[0], 0, size);
       }
@@ -133,6 +142,7 @@ public:
     if (NULL == buffer[0])
     {
       /* if (report) return; */
+      RegisterMemAlloc(size * sizeof(**buffer));
       buffer[0] = new unsigned char[size];
     }
     memcpy(buffer[0], buffer[1], size);
@@ -152,8 +162,16 @@ public:
     return buffer[report][i / CHAR_BIT] & (1 << (i % CHAR_BIT));
   }
   
+#ifdef DEBUG
   // Return memory used by this class instance
-  unsigned long MemoryUsage() { return sizeof(RelationMap) + (size * 2 * sizeof(unsigned char)); }
+  void CollectStats(SimulationStatistics *stats)
+  {
+    size_t memsiz = sizeof(RelationMap)
+                + size * (sizeof(**buffer) << (NULL == buffer[0] ? 0 : 1));
+    stats->mem_relation_map += memsiz;
+    stats->mem_model -= memsiz;
+  }
+#endif//DEBUG
   
 private:
   unsigned char *buffer[2];
@@ -172,17 +190,21 @@ private:
     
     if (NULL != buffer[0])
     {
+      RegisterMemAlloc((i + 1) * sizeof(**buffer));
       tmp = new unsigned char[i + 1];
       memcpy(tmp, buffer[0], sizeof(unsigned char) * size);
       memset(tmp + size, 0, i + 1 - size);
       delete [] buffer[0];
+      RegisterMemFree(size * sizeof(**buffer));
       buffer[0] = tmp;
     }
     
+    RegisterMemAlloc((i + 1) * sizeof(**buffer));
     tmp = new unsigned char[i + 1];
     memcpy(tmp, buffer[1], sizeof(unsigned char) * size);
     memset(tmp + size, 0, i + 1 - size);
     delete [] buffer[1];
+    RegisterMemFree(size * sizeof(**buffer));
     buffer[1] = tmp;
     
     size = i + 1;

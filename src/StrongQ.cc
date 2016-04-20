@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -55,6 +56,11 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   nStates = model->States();
   nDistributions = model->Distributions();
   
+# ifdef DEBUG
+    stats.ResetStats();
+    CompactMaxFlow<double>::ResetStats();
+# endif
+
   // Copy pointers to sparse matrix and set up model type abstraction
   switch (model->Type())
   {
@@ -65,6 +71,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
     non_zeros = ((MarkovChain*)model)->non_zeros;
     state_starts = 0;
     actions = 0;
+    RegisterMemAlloc(sizeof(Simulator_MC));
     sim = new Simulator_MC(this);
     break;
   // Probabilistic Automaton
@@ -74,6 +81,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
     non_zeros = ((ProbabilisticAutomaton*)model)->non_zeros;
     state_starts = ((ProbabilisticAutomaton*)model)->state_starts;
     actions = ((ProbabilisticAutomaton*)model)->actions;
+    RegisterMemAlloc(sizeof(Simulator_PA));
     sim = new Simulator_PA(this);
     break;
   default:
@@ -82,6 +90,9 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   
   // Allocate space for quotient automaton and auxiliary structures
   // (allocate worst case space so we don't have to worry about that later)
+  RegisterMemAlloc(sizeof(*lifted_non_zeros) * model->Transitions()
+              + sizeof(int) * (model->Transitions()+model->Distributions()+1
+                          + 2 * model->States()));
   lifted_non_zeros = new double[model->Transitions()];
   lifted_cols = new int[model->Transitions()];
   lifted_row_starts = new int[model->Distributions() + 1];
@@ -92,14 +103,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   InitializeRelation();
 
 #ifdef DEBUG
-  memset(&stats, 0, sizeof(stats));
-  CompactMaxFlow<double>::ResetStats();
-  stats.mem_model = (sizeof(double) * model->Transitions())
-                  + (sizeof(int) * (model->Transitions() + model->Distributions()))
-                  + (sizeof(unsigned char) * action_mask_pitch * model->States());
-  stats.mem_relation = 0;
   stats.num_initial_pairs = nBlocks;
-  stats.mem_partition_map = 3 * nStates * sizeof(int);
 #endif//DEBUG
 
 #ifdef QLOG
@@ -176,6 +180,8 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   rmap.ReportCurrent(false);
   size = 0;
   if (result) result->clear();
+  // *result is not counted in the memory usage, as it is the output of the
+  // function.
   for (n = 0; n < nStates; ++n)
   {
     for (m = 0; m < nStates; ++m)
@@ -188,30 +194,47 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
     }
   }
 
-#ifdef DEBUG
-  stats.mem_relation_map = rmap.MemoryUsage();
-  stats.num_partitions = nBlocks;
-  stats.num_iterations = iteration;
-  stats.num_final_pairs = size;
-  stats.mem_maxflow = CompactMaxFlow<double>::global_space_peak;
-  stats.num_maxflow = CompactMaxFlow<double>::global_times_invoked;
-  stats.num_p_invariant_fails = CompactMaxFlow<double>::global_p_inv_fails;
-  stats.num_sig_arc_fails = CompactMaxFlow<double>::global_sig_arc_fails;
-  stats.min_complexity = CompactMaxFlow<double>::min_complexity;
-  stats.max_complexity = CompactMaxFlow<double>::max_complexity;
-  CompactMaxFlow<double>::ResetStats();
-#endif//DEBUG
-
   delete [] lifted_row_starts;
   delete [] lifted_cols;
   delete [] lifted_non_zeros;
   delete [] partition;
+  RegisterMemFree(sizeof(int) * (nDistributions+1+model->Transitions()
+                          + 2*nStates)
+              + sizeof(*lifted_non_zeros) * model->Transitions());
   delete sim;
+  if (model->Type() == ProbabilisticModel::MC)
+    RegisterMemFree(sizeof(Simulator_MC));
+  else
+    RegisterMemFree(sizeof(Simulator_PA));
+  for (std::vector<std::set<int> >::iterator i = sigma.begin();
+                                                        i != sigma.end(); i++)
+  {
+    RegisterMemFree(i->size() * (sizeof(int) + SET_OVERHEAD));
+    // i->clear();
+  }
+  RegisterMemFree(sigma.size() * (sizeof(std::set<int>) + VEC_OVERHEAD));
   sigma.clear();
+
+  RegisterMemFree(forall.size()
+              * (sizeof(std::pair<int,std::pair<int,int> >) + MAP_OVERHEAD));
   forall.clear();
   
-  if (action_masks) delete [] action_masks;
+  if (action_masks)
+  {
+    delete [] action_masks;
+    RegisterMemFree(nStates * action_mask_pitch * sizeof(*action_masks));
+  }
   
+#ifdef DEBUG
+  rmap.CollectStats(&stats);
+  rmap.clear_mem();
+  CompactMaxFlow<double>::CollectStats(&stats);
+  stats.CollectStats();
+  stats.num_partitions = nBlocks;
+  stats.num_iterations = iteration;
+  stats.num_final_pairs = size;
+#endif//DEBUG
+
   return size;
 }
 
@@ -231,6 +254,7 @@ void StrongSimulation_Quotient::InitializeActionMasks()
   
   a = ((ProbabilisticAutomaton*)model)->da;
   action_mask_pitch = (CHAR_BIT - 1 + a) / CHAR_BIT;
+  RegisterMemAlloc(nStates * action_mask_pitch * sizeof(*action_masks));
   action_masks = new unsigned char[nStates * action_mask_pitch];
   memset(action_masks, 0, nStates * action_mask_pitch);
   
@@ -272,9 +296,11 @@ void StrongSimulation_Quotient::InitializeRelation()
   // Build relation map for the initial blocks we have. All pairs of blocks (B,B')
   // where L(B) = L(B') and Act(B) \subset_eq Act(B') are in the initial relation.
   assert(sigma.empty());
+  RegisterMemAlloc(nBlocks * (sizeof(std::set<int>) + VEC_OVERHEAD));
   sigma.resize(nBlocks, std::set<int>());
   for (n = 0; n < nStates; ++n)
   {
+    RegisterMemAlloc(sizeof(int) + SET_OVERHEAD);
     sigma[partition[n]].insert(n);
   }
   for (n = 0; n < nBlocks; ++n)
@@ -324,7 +350,11 @@ void StrongSimulation_Quotient::LiftDistributions()
     {
       // Lift distribution i from state space to partition space
       s = partition[cols[j]];
-      if ((mi = mu.find(s)) == mu.end()) mu.insert(make_pair(s, non_zeros[j]));
+      if ((mi = mu.find(s)) == mu.end())
+      {
+        RegisterMemAlloc(sizeof(std::pair<int,double>) + MAP_OVERHEAD);
+        mu.insert(make_pair(s, non_zeros[j]));
+      }
       else mi->second += non_zeros[j];
     }
     
@@ -337,6 +367,7 @@ void StrongSimulation_Quotient::LiftDistributions()
     }
     lifted_row_starts[i + 1] = j;
     
+    RegisterMemFree(mu.size() * (sizeof(std::pair<int,double>)+MAP_OVERHEAD));
     mu.clear();
   }
   
@@ -353,6 +384,8 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
   vector<set<int> >::iterator si;
   set<int>::iterator qi;
   
+  RegisterMemFree(forall.size()
+              * (sizeof(std::pair<int,std::pair<int,int> >) + MAP_OVERHEAD));
   forall.clear();
   
 #ifdef QLOG
@@ -367,8 +400,12 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
     s = *si->begin();
     for (i = state_starts[s]; i < state_starts[s + 1]; ++i)
     {
+      // Occasionally, this might insert an already existing element.
+      // Therefore, RegisterMemAlloc() is called after the loop.
       candidates.insert(make_pair(actions[i], i));
     }
+    RegisterMemAlloc(candidates.size()
+                * (sizeof(std::pair<int,int>) + MAP_OVERHEAD));
     
     // Iterate through the states in the block (skipping the first) and find \forall distributions
     for (qi = ++(si->begin()); qi != si->end() && candidates.size() > 0; ++qi)
@@ -379,16 +416,33 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
       {
         for (mu = candidates.begin(); mu != candidates.end(); ++mu)
         {
-          if (actions[i] == mu->first && Dist_Equal(i, mu->second)) keep.insert(*mu);
+          if (actions[i] == mu->first && Dist_Equal(i, mu->second))
+          {
+	    // Occasionally, this might insert an already existing element.
+	    // Therefore, RegisterMemAlloc() is called after the loop.
+	    // (Dist_Equal() does not allocate any memory, so this is
+	    // unproblematic.)
+            keep.insert(*mu);
+          }
         }
       }
+      RegisterMemAlloc(keep.size()*(sizeof(std::pair<int,int>)+MAP_OVERHEAD));
       
+      RegisterMemFree(candidates.size()
+                  * (sizeof(std::pair<int,int>) + MAP_OVERHEAD));
+      RegisterMemAlloc(keep.size()*(sizeof(std::pair<int,int>)+MAP_OVERHEAD));
       candidates = keep;
+      RegisterMemFree(keep.size() * (sizeof(std::pair<int,int>)+MAP_OVERHEAD));
       keep.clear();
     }
     
     // Mark any remaining distributions as \forall distributions
-    for (mu = candidates.begin(); mu != candidates.end(); ++mu) forall.insert(make_pair(j, *mu));
+    for (mu = candidates.begin(); mu != candidates.end(); ++mu)
+    {
+      RegisterMemAlloc(sizeof(std::pair<int,std::pair<int,int> >)
+                  + MAP_OVERHEAD);
+      forall.insert(make_pair(j, *mu));
+    }
     
 #ifdef QLOG
     fprintf(qlog, "[FALL] Block %d {", j);
@@ -397,6 +451,9 @@ void StrongSimulation_Quotient::FindCommonDistributions_PA()
     for (mu = candidates.begin(); mu != candidates.end(); ++mu) fprintf(qlog, "%s%d", (mu == candidates.begin() ? "" : ","), mu->second);
     fprintf(qlog, "}\n");
 #endif
+
+    RegisterMemFree(candidates.size()
+                * (sizeof(std::pair<int,int>) + MAP_OVERHEAD));
     candidates.clear();
   }
 }
@@ -408,6 +465,8 @@ void StrongSimulation_Quotient::FindCommonDistributions_MC()
   vector<set<int> >::iterator si;
   set<int>::iterator qi;
   
+  RegisterMemFree(forall.size()
+              * (sizeof(std::pair<int,std::pair<int,int> >) + MAP_OVERHEAD));
   forall.clear();
   
   // Iterate through blocks to find \forall distributions
@@ -423,7 +482,12 @@ void StrongSimulation_Quotient::FindCommonDistributions_MC()
     }
     
     // Mark remaining distribution as \forall distribution
-    if (qi == si->end()) forall.insert(make_pair(j, make_pair(0, candidate)));
+    if (qi == si->end())
+    {
+      RegisterMemAlloc(sizeof(std::pair<int,std::pair<int,int> >)
+                  + MAP_OVERHEAD);
+      forall.insert(make_pair(j, make_pair(0, candidate)));
+    }
   }
 }
 
@@ -459,7 +523,11 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
         rmap.Clear(i, j);
         repeat = true;
       }
-      else relation.insert(make_pair(i, j));
+      else
+      {
+        RegisterMemAlloc(sizeof(std::pair<int,int>) + SET_OVERHEAD);
+        relation.insert(make_pair(i, j));
+      }
     }
   }
   
@@ -487,10 +555,19 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
         rmap.Clear(i, j);
         repeat = true;
       }
-      else survivors.insert(make_pair(i, j));
+      else
+      {
+        RegisterMemAlloc(sizeof(std::pair<int,int>) + SET_OVERHEAD);
+        survivors.insert(make_pair(i, j));
+      }
     }
     
+    RegisterMemFree(relation.size()*(sizeof(std::pair<int,int>)+SET_OVERHEAD));
+    RegisterMemAlloc(survivors.size()
+                * (sizeof(std::pair<int,int>) + SET_OVERHEAD));
     relation = survivors;
+    RegisterMemFree(survivors.size()
+                * (sizeof(std::pair<int,int>) + SET_OVERHEAD));
     survivors.clear();
 #ifdef QLOG
     ++iter;
@@ -502,6 +579,8 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
   fprintf(qlog, "[PURG] Leaving inner loop after %d iterations\n", iter);
 #endif
   
+  RegisterMemFree(relation.size()
+              * (sizeof(std::pair<int,int>) + SET_OVERHEAD));
   relation.clear();
 
   // Flush cached networks (if any) because they will be invalid in the next iteration
@@ -537,10 +616,13 @@ int StrongSimulation_Quotient::Iterate()
   rmap.ReportCurrent(false);
   
   // Initialize set of vertices Q
+  assert(vertices.empty());
+  RegisterMemAlloc(nBlocks * (sizeof(std::set<int>) + VEC_OVERHEAD));
   vertices.resize(nBlocks, std::set<int>());
-  for (i = 0; i < nBlocks; ++i) vertices[i].insert(i);
   
   // Find vertices Q (lines 5-7)
+  assert(block_rep.empty());
+  RegisterMemAlloc(nBlocks * (sizeof(int) + VEC_OVERHEAD));
   block_rep.resize(nBlocks);
   for (i = 0; i < nStates; ++i)
   {
@@ -552,7 +634,11 @@ int StrongSimulation_Quotient::Iterate()
         // For two states i,j in the same block, put j into a new block if Steps(i) != Steps(j)
         if (!Steps_Equal(i, j))
         {
-          if (!started_new) block_rep.push_back(0);
+          if (!started_new)
+          {
+            RegisterMemAlloc(sizeof(int) + VEC_OVERHEAD);
+            block_rep.push_back(0);
+          }
           
           // Put state into new block
           new_partition[j] = nextblock;
@@ -566,6 +652,11 @@ int StrongSimulation_Quotient::Iterate()
     if (started_new) ++nextblock;
     
     block_rep[new_partition[i]] = i;
+  }
+  for (i = 0; i < nBlocks; ++i)
+  {
+    vertices[i].insert(i);
+    RegisterMemAlloc(vertices[i].size() * (sizeof(int) + SET_OVERHEAD));
   }
   
 #ifdef QLOG
@@ -589,6 +680,10 @@ int StrongSimulation_Quotient::Iterate()
   // to creating a graph for each parent block B since there will be no
   // edges between independent blocks B and B'.
   nextblock = parentblocks;
+  RegisterMemAlloc(sizeof(*digraph)
+              +sizeof(adjacency_list<vecS,vecS,directedS>::graph_property_type)
+              +nBlocks * (sizeof(adjacency_list<vecS, vecS, directedS>
+                          ::stored_vertex) + VEC_OVERHEAD));
   digraph = new adjacency_list<vecS, vecS, directedS>(nBlocks);
   
   // Iterate through subblocks Q in each parent block B
@@ -604,16 +699,35 @@ int StrongSimulation_Quotient::Iterate()
         // If sub-block Q' simulates sub-block Q in the lifted model, add edge (Q,Q') to graph
         if (sim->sRs(block_rep[*mia], block_rep[*mib], true))
         {
+          // some edges are inserted twice (but the adjacency list will store
+          // them only once). Therefore, we cannot call RegisterMemAlloc()
+          // here. Instead, we call it after inserting all edges.
           add_edge(vertex(*mia, *digraph), vertex(*mib, *digraph), *digraph);
         }
       }
     }
   }
+  RegisterMemAlloc(digraph->m_edges.size() * (sizeof(boost::list_edge
+              <adjacency_list<vecS, vecS, directedS>::vertex_descriptor,
+                          directedS>) + VEC_OVERHEAD));
+  RegisterMemFree(block_rep.size() * (sizeof(int) + VEC_OVERHEAD));
   block_rep.clear();
   
+  for (std::vector<std::set<int> >::iterator i = vertices.begin();
+                                                    i != vertices.end(); ++i)
+  {
+    RegisterMemFree(i->size() * (sizeof(int) + SET_OVERHEAD));
+    // i->clear();
+  }
+  RegisterMemFree(vertices.size() * (sizeof(std::set<int>) + VEC_OVERHEAD));
+  vertices.clear();
+
   // Compute strongly connected components, build parent relation and new partition.
   // With scc_rev we save rebuilding the graph to test Reach(Q,Q'); since we don't know
   // how the partitions are renamed by the algorithm for SCCs, we need a mapping.
+  assert(scc.empty());
+  assert(scc_rev.empty());
+  RegisterMemAlloc(nBlocks * ((sizeof(int) + VEC_OVERHEAD) * 2));
   scc.resize(nBlocks, 0);
   scc_rev.resize(nBlocks, 0);
   components = strong_components(*digraph, &scc[0]);
@@ -623,6 +737,8 @@ int StrongSimulation_Quotient::Iterate()
     new_partition[i] = scc[new_partition[i]];
     par.insert(std::make_pair(new_partition[i], partition[i]));
   }
+  RegisterMemAlloc(par.size() * (sizeof(std::pair<int,int>) + MAP_OVERHEAD));
+  RegisterMemFree(scc.size() * (sizeof(int) + VEC_OVERHEAD));
   scc.clear();
   
 #ifdef QLOG
@@ -630,8 +746,22 @@ int StrongSimulation_Quotient::Iterate()
 #endif
   
   // Compute transitive closure
+  RegisterMemAlloc(sizeof(*digraph_closure)
+            +sizeof(adjacency_list<vecS,vecS,directedS>::graph_property_type));
   digraph_closure = new adjacency_list<vecS, vecS, directedS>;
   transitive_closure(*digraph, *digraph_closure);
+  RegisterMemAlloc(digraph_closure->m_vertices.size() * (sizeof(adjacency_list
+                          <vecS,vecS,directedS>::stored_vertex) + VEC_OVERHEAD)
+              + digraph_closure->m_edges.size() * (sizeof(boost::list_edge
+                          <adjacency_list<vecS, vecS, directedS>
+                          ::vertex_descriptor, directedS>) + VEC_OVERHEAD));
+  RegisterMemFree(sizeof(*digraph)
+              +sizeof(adjacency_list<vecS,vecS,directedS>::graph_property_type)
+              + nBlocks * (sizeof(adjacency_list<vecS, vecS,
+                          directedS>::stored_vertex) + VEC_OVERHEAD)
+              + digraph->m_edges.size() * (sizeof(boost::list_edge
+                          <adjacency_list<vecS, vecS, directedS>
+                          ::vertex_descriptor, directedS>) + VEC_OVERHEAD));
   delete digraph;
   
   nBlocks = components;
@@ -641,9 +771,21 @@ int StrongSimulation_Quotient::Iterate()
 
   if (!sigma_unchanged)
   {
+    for (std::vector<std::set<int> >::iterator i = sigma.begin();
+                                                        i != sigma.end(); ++i)
+    {
+      RegisterMemFree(i->size() * (sizeof(int) + SET_OVERHEAD));
+      // i->clear();
+    }
+    RegisterMemFree(sigma.size() * (sizeof(std::set<int>) + VEC_OVERHEAD));
     sigma.clear();
+    RegisterMemAlloc(nBlocks * (sizeof(std::set<int>) + VEC_OVERHEAD));
     sigma.resize(nBlocks, std::set<int>());
-    for (i = 0; i < nStates; ++i) sigma[new_partition[i]].insert(i);
+    for (i = 0; i < nStates; ++i)
+    {
+      RegisterMemAlloc(sizeof(int) + SET_OVERHEAD);
+      sigma[new_partition[i]].insert(i);
+    }
 #ifdef QLOG
     fprintf(qlog, "[REFN] %d blocks in refined partition:\n[REFN]", nBlocks);
     for (int n = 0; n < nBlocks; ++n)
@@ -691,6 +833,8 @@ int StrongSimulation_Quotient::Iterate()
     }
   }
   
+  RegisterMemFree(par.size() * (sizeof(std::pair<int,int>) + MAP_OVERHEAD)
+              + scc_rev.size() * (sizeof(int) + VEC_OVERHEAD));
   par.clear();
   scc_rev.clear();
 
@@ -709,6 +853,13 @@ int StrongSimulation_Quotient::Iterate()
   fprintf(qlog, "\n");
 #endif
 
+  RegisterMemFree(sizeof(*digraph_closure)
+              +sizeof(adjacency_list<vecS,vecS,directedS>::graph_property_type)
+              + digraph_closure->m_vertices.size() * (sizeof(adjacency_list
+                          <vecS,vecS,directedS>::stored_vertex) + VEC_OVERHEAD)
+              + digraph_closure->m_edges.size() * (sizeof(boost::list_edge
+                          <adjacency_list<vecS, vecS, directedS>
+                          ::vertex_descriptor, directedS>) + VEC_OVERHEAD));
   delete digraph_closure;
   
   // Reconstruct quotient automaton which is required by lines 9-15 and is also used at the
@@ -738,11 +889,13 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
   if (no_cache)
   {
     CompactMaxFlow<double> net;
+    CompactMaxFlow<double>::RegisterMemAlloc(sizeof(net));
     
     res = net.CreateNetwork(base->lifted_cols, base->lifted_non_zeros, &base->rmap, base->lifted_row_starts[mu1],
                   base->lifted_row_starts[mu1 + 1] - base->lifted_row_starts[mu1], base->lifted_row_starts[mu2],
                   base->lifted_row_starts[mu2 + 1] - base->lifted_row_starts[mu2], known_result, 0);
     
+    CompactMaxFlow<double>::RegisterMemFree(sizeof(net));
     if (known_result) return res;
     
     return net.IsFlowTotal();
@@ -755,6 +908,7 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
   
   if (i == cache.end() || !i->second) // Network not cached, create
   {
+    CompactMaxFlow<double>::RegisterMemAlloc(sizeof(*cmf));
     cmf = new CompactMaxFlow<double>;
     res = cmf->CreateNetwork(base->lifted_cols, base->lifted_non_zeros, &base->rmap, base->lifted_row_starts[mu1],
                   base->lifted_row_starts[mu1 + 1] - base->lifted_row_starts[mu1], base->lifted_row_starts[mu2],
@@ -764,6 +918,9 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
     
     if (res)
     {
+      if (i == cache.end())
+        RegisterMemAlloc(sizeof(std::pair<std::pair<int,int>,
+                    CompactMaxFlow<double>*>) + MAP_OVERHEAD);
       cache.insert(std::make_pair(std::make_pair(mu1, mu2), cmf));
 #ifdef DEBUG
       ++base->stats.num_nets_cached;
@@ -773,6 +930,7 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
     else
     {
       delete cmf;
+      CompactMaxFlow<double>::RegisterMemFree(sizeof(*cmf));
       return false;
     }
   }
@@ -788,7 +946,10 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
     if (cmf->IsFlowTotal()) return true;
     
     delete cmf;
+    CompactMaxFlow<double>::RegisterMemFree(sizeof(*cmf));
     cache.erase(std::make_pair(mu1, mu2));
+    RegisterMemFree(sizeof(std::pair<std::pair<int,int>,
+                CompactMaxFlow<double>*>) + MAP_OVERHEAD);
     
     return false;
   }
@@ -797,11 +958,13 @@ bool StrongSimulation_Quotient::Simulator::muRmu(int mu1, int mu2, bool)
   return false;
 #else//OPT_CACHE_NETS
   CompactMaxFlow<double> cmf;
+  CompactMaxFlow<double>::RegisterMemAlloc(sizeof(cmf));
   
   res = cmf.CreateNetwork(base->lifted_cols, base->lifted_non_zeros, &base->rmap, base->lifted_row_starts[mu1],
                  base->lifted_row_starts[mu1 + 1] - base->lifted_row_starts[mu1], base->lifted_row_starts[mu2],
                  base->lifted_row_starts[mu2 + 1] - base->lifted_row_starts[mu2], known_result, 0);
   
+  CompactMaxFlow<double>::RegisterMemFree(sizeof(cmf));
   if (known_result) return res;
   
   return cmf.IsFlowTotal();
@@ -813,7 +976,15 @@ void StrongSimulation_Quotient::Simulator::Flush()
 #ifdef OPT_CACHE_NETS
   std::map<std::pair<int,int>,CompactMaxFlow<double>*>::iterator i;
   
-  for (i = cache.begin(); i != cache.end(); ++i) if (i->second) delete i->second;
+  for (i = cache.begin(); i != cache.end(); ++i)
+    if (i->second)
+    {
+      delete i->second;
+      CompactMaxFlow<double>::RegisterMemFree(sizeof(*i->second));
+    }
+  RegisterMemFree(cache.size()
+              * (sizeof(std::pair<std::pair<int,int>,CompactMaxFlow<double>*>)
+                 + MAP_OVERHEAD));
   cache.clear();
 #endif//OPT_CACHE_NETS
 }
@@ -878,7 +1049,11 @@ bool StrongSimulation_Quotient::Simulator_PA::qRq(int q1, int q2, bool no_cache)
   // Get \forall-distributions of q1 and put them in a set, return true if there are none
   mu = base->forall.equal_range(q1);
   if (mu.first == mu.second) return true;
-  for (; mu.first != mu.second; ++mu.first) needed.insert(mu.first->second);
+  for (; mu.first != mu.second; ++mu.first)
+  {
+    RegisterMemAlloc(sizeof(std::pair<int,int>) + MAP_OVERHEAD);
+    needed.insert(mu.first->second);
+  }
   
   // Iterate over all states *i in q2
   for (i = base->sigma[q2].begin(); i != base->sigma[q2].end(); ++i)
@@ -897,6 +1072,7 @@ bool StrongSimulation_Quotient::Simulator_PA::qRq(int q1, int q2, bool no_cache)
           mmi = pi.first;
           ++pi.first;
           needed.erase(mmi);
+          RegisterMemFree(sizeof(std::pair<int,int>) + MAP_OVERHEAD);
           if (needed.size() == 0) return true;
         }
         else ++pi.first;
@@ -910,6 +1086,7 @@ bool StrongSimulation_Quotient::Simulator_PA::qRq(int q1, int q2, bool no_cache)
   fprintf(base->qlog, "\n");
 #endif
   
+  RegisterMemFree(needed.size() * (sizeof(std::pair<int,int>) + MAP_OVERHEAD));
   needed.clear();
 
   return false;

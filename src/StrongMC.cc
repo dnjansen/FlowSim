@@ -32,8 +32,14 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   
   if (!model || model->Type() != ProbabilisticModel::MC) return 0;
   
+#ifdef DEBUG
+  stats.ResetStats();
+  CompactMaxFlow<double>::ResetStats();
+#endif//DEBUG
+  
   // Copy sparse matrix structures
   m = (MarkovChain*)model;
+  RegisterMemAlloc(m->nnz * (sizeof(*non_zeros) + sizeof(*cols)));
   non_zeros = new double[m->nnz];
   memcpy(non_zeros, m->non_zeros, sizeof(double) * m->nnz);
   cols = new int[m->nnz];
@@ -51,9 +57,6 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   else size_of_relation = BuildRelationMap_DTMC();
   
 #ifdef DEBUG
-  memset(&stats, 0, sizeof(stats));
-  CompactMaxFlow<double>::ResetStats();
-  stats.mem_model = (sizeof(double) * m->nnz) + (sizeof(int) * m->nnz);
   stats.num_initial_pairs = size_of_relation;
 #endif//DEBUG
   
@@ -61,19 +64,15 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   // Preprocessing for state partitioning optimization
   SortSuccessors();
   MakeFirstPartition();
-#endif
 
 #ifdef DEBUG
-#if defined(OPT_PARTITION)
   {
-    stats.mem_partition_map = sizeof(char) * partitions * partitions;
+    stats.mem_partition_map += sizeof(char) * partitions * partitions;
+    stats.mem_model -= sizeof(char) * partitions * partitions;
     stats.num_partitions = partitions;
   }
-#else
-  stats.mem_partition_map = 0;
-  stats.num_partitions = 0;
-#endif
 #endif//DEBUG
+#endif//OPT_PARTITION
 
   // Main refinement loop
   while (1)
@@ -93,29 +92,10 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
     
     if (r == 0) break;
   }
-  
-#ifdef DEBUG
-  stats.mem_relation_map = rmap.MemoryUsage();
-  stats.num_iterations = iterations;
-  stats.num_final_pairs = size_of_relation;
-  stats.mem_maxflow = CompactMaxFlow<double>::global_space_peak;
-  stats.num_maxflow = CompactMaxFlow<double>::global_times_invoked;
-  stats.num_p_invariant_fails = CompactMaxFlow<double>::global_p_inv_fails;
-  stats.num_sig_arc_fails = CompactMaxFlow<double>::global_sig_arc_fails;
-  stats.min_complexity = CompactMaxFlow<double>::min_complexity;
-  stats.max_complexity = CompactMaxFlow<double>::max_complexity;
-  CompactMaxFlow<double>::ResetStats();
-#endif//DEBUG
-
-  //if (optflags & (OPT_PARTITION | OPT_PARTITION2))
-#if defined(OPT_PARTITION)
-  {
-    delete [] partition;
-  }
-#endif
 
   delete [] non_zeros;
   delete [] cols;
+  RegisterMemFree((sizeof(*non_zeros) + sizeof(*cols)) * m->nnz);
 
   // Return result in the provided set if requested
   if (result)
@@ -133,15 +113,33 @@ unsigned int StrongSimulation_MC::Simulate(ProbabilisticModel *model, std::set<s
   while (relation)
   {
     pp = relation->next;
+#   ifdef OPT_CACHE_NETS
+      if (NULL != relation->simulation) {
+        delete relation->simulation;
+        CompactMaxFlow<double>::RegisterMemFree(sizeof(*relation->simulation));
+        relation->simulation = 0;
+      }
+#   endif
     delete relation;
+    RegisterMemFree(sizeof(*relation));
     relation = pp;
   }
   
+#ifdef DEBUG
+  rmap.CollectStats(&stats);
+  rmap.clear_mem();
+  CompactMaxFlow<double>::CollectStats(&stats);
+  stats.CollectStats();
+#endif//DEBUG
+
   return size_of_relation;
 }
 
 #ifdef WITH_VERIFIER
 // Verify that a set of pairs is a simulation relation for the given model
+// (As this function is not strictly a part of the simulation relation
+// calculation, its dynamic allocations will not be counted in the statistics.
+// However, rmap will be counted anyway.)
 bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<int,int> > &hypothesis,
         std::set<std::pair<int,int> > *false_positives, std::set<std::pair<int,int> > *false_negatives)
 {
@@ -207,6 +205,7 @@ bool StrongSimulation_MC::Verify(ProbabilisticModel *model, std::set<std::pair<i
 #ifdef OPT_CACHE_NETS
       if (res) {
         delete p.simulation;
+        CompactMaxFlow<double>::RegisterMemFree(sizeof(*p.simulation));
         p.simulation = NULL;
       }
 #endif//OPT_CACHE_NETS
@@ -255,6 +254,7 @@ int StrongSimulation_MC::BuildRelationMap_CTMC()
   double *psums = 0;
   
   // Compute R(s, S) for all s and normalize transition rates
+  RegisterMemAlloc(n_states * sizeof(*psums));
   psums = new double[n_states];
   for (int j, i = 0; i < n_states; ++i)
   {
@@ -277,6 +277,7 @@ int StrongSimulation_MC::BuildRelationMap_CTMC()
   }
   
   delete [] psums;
+  RegisterMemFree(n_states * sizeof(*psums));
   
   rmap.Commit();
   
@@ -307,6 +308,7 @@ int StrongSimulation_MC::IterateRelation(bool first)
 #endif//OPT_CACHE_NETS
         if (DecideStrongSimulation(&p))
         {
+          RegisterMemAlloc(sizeof(*relation));
           pp = new Pair;
           pp->x = s1;
           pp->y = s2;
@@ -344,6 +346,7 @@ int StrongSimulation_MC::IterateRelation(bool first)
           assert(NULL == pp->simulation);
 #       endif
         delete pp;
+        RegisterMemFree(sizeof(*pp));
         pp = *anchor;
         --new_size;
       }
@@ -374,6 +377,7 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
   Pair pair, *pp;
 
   // Allocate and initialize the partition map
+  RegisterMemAlloc(partitions * partitions * sizeof(*partition_map));
   partition_map = new char[partitions * partitions];
   memset(partition_map, 0, sizeof(char) * partitions * partitions);
   
@@ -386,6 +390,7 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
       // Identical partitions are known positive
       if (partition[s1] == partition[s2])
       {
+        RegisterMemAlloc(sizeof(*relation));
         pp = new Pair;
         pp->x = s1;
         pp->y = s2;
@@ -405,6 +410,7 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
         --new_size;
         break; // Known failure; skip pair
       case '+': // Known success; add pair
+        RegisterMemAlloc(sizeof(*relation));
         pp = new Pair;
         pp->x = s1;
         pp->y = s2;
@@ -422,6 +428,7 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
 #endif//OPT_CACHE_NETS
         if (DecideStrongSimulation(&pair))
         {
+          RegisterMemAlloc(sizeof(*relation));
           pp = new Pair;
           pp->x = s1;
           pp->y = s2;
@@ -447,13 +454,11 @@ int StrongSimulation_MC::IterateRelation_FirstPartition()
     }
   }
   
-#ifdef DEBUG
-  stats.mem_relation = sizeof(Pair) * new_size;
-#endif//DEBUG
-  
   // Drop partition map; this is only valid for the duration of the first partition
   delete [] partition_map;
   delete [] partition;
+  RegisterMemFree(partitions * partitions * sizeof(*partition_map)
+              + n_states * sizeof(*partition));
   partition = NULL;
   
   // Copy the new relation map back into the main buffer
@@ -469,6 +474,7 @@ CompactMaxFlow<double> *StrongSimulation_MC::ConstructNetwork(Pair *p)
   bool result, known_result;
   int s1_suc = row_starts[s1+1] - row_starts[s1]; // Get number of successor states
   int s2_suc = row_starts[s2+1] - row_starts[s2]; //
+  CompactMaxFlow<double>::RegisterMemAlloc(sizeof(CompactMaxFlow<double>));
   CompactMaxFlow<double> *sim = new CompactMaxFlow<double>;
   
   // Create the network
@@ -476,6 +482,7 @@ CompactMaxFlow<double> *StrongSimulation_MC::ConstructNetwork(Pair *p)
   if (known_result && !result)
   {
     delete sim;
+    CompactMaxFlow<double>::RegisterMemFree(sizeof(*sim));
     return 0;
   }
   else assert(result);
@@ -524,10 +531,12 @@ bool StrongSimulation_MC::DecideStrongSimulation(Pair *p)
   if (!r)
   {
     delete p->simulation;
+    CompactMaxFlow<double>::RegisterMemFree(sizeof(*p->simulation));
     p->simulation = 0;
   }
 #else//OPT_CACHE_NETS
   delete sim;
+  CompactMaxFlow<double>::RegisterMemFree(sizeof(*sim));
 #endif//OPT_CACHE_NETS
 
 return r;
@@ -542,6 +551,7 @@ void StrongSimulation_MC::MakeFirstPartition()
   int n, cur_part, np, s;
   StateOrder cmp(this);
   
+  RegisterMemAlloc(n_states * sizeof(*order));
   order = new int[n_states];
   for (n = 0; n < n_states; ++n) order[n] = n;
   
@@ -553,6 +563,7 @@ void StrongSimulation_MC::MakeFirstPartition()
   
   // Determine partitions
   partitions = 1;
+  RegisterMemAlloc(n_states * sizeof(*partition));
   partition = new int[n_states];
   memset(partition, 0, sizeof(int) * n_states);
   for (n = 1; n < n_states; ++n)
@@ -569,6 +580,7 @@ void StrongSimulation_MC::MakeFirstPartition()
     }
   }
   delete [] order;
+  RegisterMemFree(n_states * sizeof(*order));
   order = NULL;
 }
 #endif
@@ -617,6 +629,7 @@ bool StrongSimulation_MC::state_Different(int s1, int s2)
 void StrongSimulation_MC::SortSuccessors()
 {
   int i, suc;
+  RegisterMemAlloc((2 * m->nnz + 1) * sizeof(int) + m->nnz * sizeof(double));
   int *successor_order = new int[m->nnz + 1];
   int *new_cols = new int[m->nnz];
   double *new_nz = new double[m->nnz];
@@ -644,6 +657,7 @@ void StrongSimulation_MC::SortSuccessors()
   // Delete old arrays and copy new ones over
   delete [] cols;
   delete [] non_zeros;
+  RegisterMemFree((2 * m->nnz + 1) * sizeof(int) + m->nnz * sizeof(double));
   
   cols = new_cols;
   non_zeros = new_nz;

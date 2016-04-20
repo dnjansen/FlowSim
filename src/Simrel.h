@@ -28,15 +28,6 @@
 #include "prmodel.h"
 #include "compactmaxflow.h"
 
-#ifdef DEBUG
-struct SimulationStatistics
-{
-  unsigned int num_partitions, num_iterations, num_initial_pairs, num_final_pairs,
-    num_maxflow, num_p_invariant_fails, num_sig_arc_fails, min_complexity,
-    max_complexity, num_nets_cached, num_cache_hits;
-  unsigned long mem_relation_map, mem_partition_map, mem_relation, mem_maxflow, mem_model;
-};
-#endif//DEBUG
 
 // Interface class for simulation relation for various model types
 class SimulationRelation

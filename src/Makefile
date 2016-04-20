@@ -62,65 +62,65 @@ r-mdp: r-mdp.cc prmodel.o
 modelstat: modelstat.cc prmodel.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-flowsim: bench.o benchmark.o prmodel.o compactmaxflow.cc r-dtmc.o
+flowsim: bench.o benchmark.o prmodel.o compactmaxflow.cc r-dtmc.o stats.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 benchsingle: benchone_0 benchone_1 benchone_2 benchone_4 benchone_5 benchone_6 benchone_16 \
              benchone_17 benchone_18 benchone_20 benchone_21 benchone_22 benchone_24 benchone_25 \
              benchone_26 benchone_28 benchone_29 benchone_30
 
-benchone_0 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_0 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                                                                                          -o $@ $^
 
-benchone_1 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_1 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION                                                                          -o $@ $^
 
-benchone_2 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_2 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                                                                           -DOPT_QUOTIENT -o $@ $^
 
-benchone_4 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_4 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT                                                        -o $@ $^
 
-benchone_5 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_5 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -DOPT_P_INVARIANT                                                        -o $@ $^
 
-benchone_6 : bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_6 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT                                         -DOPT_QUOTIENT -o $@ $^
 
-benchone_16: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_16: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                                                          -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_17: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_17: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION                                          -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_18: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_18: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                                                          -DOPT_CACHE_NETS -DOPT_QUOTIENT -o $@ $^
 
-benchone_20: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_20: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT                        -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_21: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_21: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -DOPT_P_INVARIANT                        -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_22: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_22: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT                        -DOPT_CACHE_NETS -DOPT_QUOTIENT -o $@ $^
 
-benchone_24: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_24: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                                   -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_25: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_25: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION                   -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_26: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_26: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                                   -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS -DOPT_QUOTIENT -o $@ $^
 
-benchone_28: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_28: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_29: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
+benchone_29: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS                -o $@ $^
 
-benchone_30: bench.o prmodel.o r-dtmc.o benchone.cc compactmaxflow.cc StrongQ.cc
+benchone_30: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS -DOPT_QUOTIENT -o $@ $^
 # DO NOT DELETE
 

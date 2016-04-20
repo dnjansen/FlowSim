@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2014 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -54,7 +55,6 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   FILE *f = 0;
   char *buffer, *cp, *np;
   int amountread, state, n, f_state, cur_label, next_label;
-  long filesize;
   std::set<int> t_states;
   std::map<std::string,int> t_labels;
   std::string f_label;
@@ -84,12 +84,8 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   f = fopen(fn, "rb");
   if (!f) return "File not readable";
   
-  fseek(f, 0, SEEK_END);
-  filesize = ftell(f);
-  rewind(f);
-  
   buffer = new char[1024];
-  buffer[1023] = 0;
+  buffer[1023] = '\0';
   cp = buffer;
   state = 0;
   next_label = 1;
@@ -99,15 +95,13 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
   
   amountread = fread(buffer, 1, 1023, f);
   buffer[amountread] = '\0';
-  do
-  {
     while (*cp)
     {
       switch (state)
       {
       case 0:
         /* expect whitespace, then a state number, list or range, or comment */
-        while (isspace(*cp) ) ++cp;
+        while (isspace(*cp)) ++cp;
         if (*cp == '#')
         {
           np = strchr(cp, '\n');
@@ -119,14 +113,13 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
         break;
       case 1:
         /* expect a state number, list or range */
-        if ( isdigit(*cp) )
+        if (isdigit(*cp))
         {
           t_states.clear();
-          t_states.insert(strtol(cp, &np, 10));
-          cp = np;
+          t_states.insert(strtol(cp, &cp, 10));
           if (*cp == ',') ++cp, state = 2;
           else if (*cp == '-') ++cp, state = 3;
-          else if ( isblank(*cp) ) state = 4;
+          else if (isblank(*cp)) state = 4;
           else
           {
             fclose(f);
@@ -147,7 +140,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
         break;
       case 2:
         /* expect a state number (as part of a list) */
-        if ( ! isdigit(*cp) )
+        if (!isdigit(*cp))
         {
           fclose(f);
           delete [] buffer;
@@ -155,14 +148,13 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
           *assoc = NULL;
           return "Format error; expected state number (in list)";
         }
-        t_states.insert(strtol(cp, &np, 10));
-        cp = np;
+        t_states.insert(strtol(cp, &cp, 10));
         if (*cp == ',')
         {
           ++cp;
           break;
         }
-        else if ( isblank(*cp) ) state = 4;
+        else if (isblank(*cp)) state = 4;
         else
         {
           fclose(f);
@@ -174,7 +166,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
         break;
       case 3:
         /* expect a state number (as upper bound of a range) */
-        if ( ! isdigit(*cp) )
+        if (!isdigit(*cp))
         {
           fclose(f);
           delete [] buffer;
@@ -182,10 +174,9 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
           *assoc = NULL;
           return "Format error; expected state number (in range)";
         }
-        f_state = strtol(cp, &np, 10);
+        f_state = strtol(cp, &cp, 10);
         for (n = (*t_states.begin()) + 1; n <= f_state; ++n) t_states.insert(n);
-        cp = np;
-        if ( ! isblank(*cp) )
+        if (!isblank(*cp))
         {
           fclose(f);
           delete [] buffer;
@@ -197,7 +188,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
         break;
       case 4:
         /* expect white space, then a label, then a newline */
-        while ( isblank(*cp) ) ++cp;
+        while (isblank(*cp)) ++cp;
         np = strchr(cp, '\n');
         if (!np)
         {
@@ -207,7 +198,7 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
           *assoc = NULL;
           return "Format error; expected line-break after label";
         }
-        while ( isspace(*np) ) --np;
+        while (isspace(*np)) --np;
         f_label.assign(cp, np - cp + 1);
         if (t_labels.find(f_label) != t_labels.end()) cur_label = t_labels[f_label];
         else
@@ -225,15 +216,15 @@ const char *load_label_data(const char *fn, int states, int **assoc, int &num_la
       }
       if (cp - buffer >= 512)
       {
-        memmove(buffer, cp, strlen(cp) + 1);
-        cp = buffer + strlen(buffer);
-        amountread = fread(cp, 1, 1023 - (cp - buffer), f);
-        cp[amountread] = 0;
+        cp = stpcpy(buffer, cp);
+        /* cp = buffer + strlen(buffer); */
+        if (!feof(f)) {
+          amountread = fread(cp, 1, 1023 - (cp - buffer), f);
+          cp[amountread] = '\0';
+        }
         cp = buffer;
       }
     }
-  }
-  while(ftell(f) < filesize);
   
   fclose(f);
   delete [] buffer;

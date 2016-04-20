@@ -33,7 +33,6 @@ template void CompactMaxFlow<double>::_FreeInternals();
 template bool CompactMaxFlow<double>::IsFlowTotal(bool restart);
 template bool CompactMaxFlow<double>::UpdateNetwork(RelationMap *rmap,
             bool sigarc);
-template CompactMaxFlow<double>::CompactMaxFlow();
 
 #ifdef DEBUG
 template <typename _T> size_t CompactMaxFlow<_T>::global_space = 0;

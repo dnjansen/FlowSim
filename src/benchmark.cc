@@ -1,6 +1,7 @@
 /*****************************************************************************/
 /*!
- *   Copyright 2009 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang
+ *   Copyright 2009-2015 Jonathan Bogdoll, Holger Hermanns, Lijun Zhang,
+ *                       David N. Jansen
  *
  *   This file is part of FlowSim.
 
@@ -190,7 +191,7 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
       {
         utime = -1, rtime = -1, stime = -1;
         memset(&stats, 0, sizeof(stats));
-        fprintf(stderr, "Warning: Benchmark [%d %d %d %d %.3f %.3f %.3f %.3f %.3f], cfg %02lx failed\n", rm->n, rm->a, rm->b, rm->c, rm->fb, rm->lb, rm->cb, rm->pb, rm->sb, flagvector[m]);
+        fprintf(stderr, "Warning: Benchmark [%d %d %d %d %.3f %.3f %.3f %.3f %.3f], cfg %ld failed\n", rm->n, rm->a, rm->b, rm->c, rm->fb, rm->lb, rm->cb, rm->pb, rm->sb, flagvector[m]);
       }
       pclose(f);
 
@@ -224,7 +225,7 @@ void benchmark_random_model(RandomModel *rm, unsigned long *flagvector,
   {
     for (n = 0; n < flagvectorsize; ++n)
     {
-      for (m = 0; m < 11; ++m)
+      for (m = 0; m < 15; ++m)
       {
         if (tabulate[m]) result[m][(n * pitch) + res0] /= rm->avg;
       }
@@ -276,8 +277,8 @@ void usage()
 "  --latex, -l       Generate a LaTeX table in <name>_<data>.tex\n"
 "  --quiet, -q       Suppress plain-text output to stdout\n"
 "  --dumprel         Dump computed simulation relation to <name>_rel.txt\n"
-"  --time-unit <U>   Unit for time specs (ms, s, m, h)\n"
-"  --space-unit <U>  Unit for memory (B, kB, MB, GB)\n"
+"  --time-unit <U>   Unit for time specs (ms, s, min, h)\n"
+"  --space-unit <U>  Unit for memory (B, KiB, MiB, GiB)\n"
 "  --precision <N>   Number of decimals (default 3)\n"
 "  --fp-approx <e>   Values with a difference less than e are equal\n"
 "  --{x|y}rng <R>    Explicitly specify ranges in format start:end, determined\n"
@@ -991,39 +992,301 @@ bool check_label_file(const char *model, const char *suffix, bool quiet)
   return success;
 }
 
+static
+  const char *t_units[] = {"", "ms", "s", "min", "h"};
+static
+  const char *s_units[] = {"", "Bytes", "KiB", "MiB", "GiB"};
+static
+  const char *datanames[15] = {"usertime", "systemtime", "realtime", "memory", "initialsize",
+    "finalsize", "partitions", "iterations", "maxflow", "pivfail", "safail", "mincmplx", "maxcmplx",
+    "cache", "cachehits"};
+
+void HandleRandomMC(std::vector<const char*> &files, bool tabulate[15],
+                unsigned long *flagvector, unsigned long flagvectorsize,
+                unsigned int averages, double fpprecision, bool rmap_extra,
+                bool model_info, unsigned int t_unit, unsigned int s_unit,
+                bool gen_plain, std::vector<const char*> &cfg_titles,
+                double precision, bool gen_r2d, bool gen_r3d, const char*title)
+{
+  int n, m, j, k;
+  FILE *f;
+  unsigned int rsteps, zsteps;
+  double *result[15] = {NULL, NULL, NULL, NULL, NULL, NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL,
+                        NULL, NULL, NULL},
+        *plot_key, *result_rmap = NULL;
+  double transsum;
+  char datasource[160], filename[160];
+  RandomModel rm;
+  std::vector<const char*>::iterator i;
+  std::vector<unsigned int> model_states, model_actions;
+  std::vector<double> model_transitions;
+
+  // No auto-unit in random mode warning
+  if (0 == t_unit)
+  {
+    for (m = 0; m < 3; ++m)
+    {
+      if (tabulate[m])
+      {
+        fprintf(stderr, "Warning: In random model mode, units are not adjusted automatically.\n"
+                        "         Results will be displayed in seconds.\n");
+        t_unit = 2;
+        break;
+      }
+    }
+  }
+      if (tabulate[3] && 0 == s_unit)
+      {
+        fprintf(stderr, "Warning: In random model mode, units are not adjusted automatically.\n"
+                        "         Results will be displayed in kilo-bytes.\n");
+        s_unit = 2;
+      }
+
+    RandomModelPlotInfo rmpi, *prmpi = new RandomModelPlotInfo[files.size()], *last_rmpi;
+    last_rmpi = prmpi;
+    std::map<unsigned int, std::set<RandomModelPlotInfo*> > modelmap2;
+    std::map<unsigned int, std::set<RandomModelPlotInfo*> > modelmap3;
+    std::map<unsigned int, std::set<RandomModelPlotInfo*> >::iterator mmi2;
+    std::map<unsigned int, std::set<RandomModelPlotInfo*> >::iterator mmi3;
+    
+    for (i = files.begin(), m = 0; i != files.end(); ++i, ++m)
+    {
+      model_states.clear();
+      model_transitions.clear();
+      
+      f = fopen(*i, "rb");
+      ParseRandom(f, &rm);
+      fclose(f);
+      
+      if (rm.xtarget != 0xffff && rm.ztarget != 0xffff)
+      {
+        rmpi.mdl = rm;
+        sprintf(&rmpi.datasource[0], "%s_%%s_%s_%s.data", title, get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
+        rmpi.id = m;
+        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
+        modelmap3[rm.xtarget | (rm.ztarget << 16)].insert(last_rmpi);
+        ++last_rmpi;
+      }
+      else if (rm.xtarget != 0xffff && rm.ztarget == 0xffff)
+      {
+        rmpi.mdl = rm;
+        sprintf(&rmpi.datasource[0], "%s_%%s_%s.data", title, get_axis_name(rm.xtarget | 0x8000, true));
+        rmpi.id = m;
+        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
+        modelmap2[rm.xtarget].insert(last_rmpi);
+        ++last_rmpi;
+      }
+      else if (rm.xtarget == 0xffff && rm.ztarget != 0xffff)
+      {
+        rmpi.mdl = rm;
+        sprintf(&rmpi.datasource[0], "%s_%%s_%s.data", title, get_axis_name(rm.ztarget | 0x8000, true));
+        rmpi.id = m;
+        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
+        modelmap3[rm.ztarget].insert(last_rmpi);
+        ++last_rmpi;
+      }
+      
+      zsteps = (rm.ztarget == 0xffff ? 1 : rm.steps);
+      rsteps = (rm.xtarget == 0xffff ? 1 : rm.steps) * zsteps;
+      
+      for (n = 0; n < 15; ++n)
+      {
+        if (tabulate[n]) result[n] = new double[flagvectorsize * rsteps];
+      }
+      
+      if (tabulate[3] && rmap_extra) result_rmap = new double[flagvectorsize * rsteps];
+      
+      for (j = 0; j < (rm.xtarget == 0xffff ? 1 : (int)rm.steps); ++j)
+      {
+        for (k = 0; k < (rm.ztarget == 0xffff ? 1 : (int)rm.steps); ++k)
+        {
+          switch (rm.xtarget)
+          {
+          case 0x0001: rm.n = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
+          case 0x0002: rm.a = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
+          case 0x0003: rm.b = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
+          case 0x0004: rm.c = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
+          case 0x0100: rm.fb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
+          case 0x0200: rm.lb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
+          case 0x0300: rm.cb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
+          case 0x0400: rm.pb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
+          case 0x0500: rm.sb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
+          case 0x0600: rm.labels = (unsigned int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
+          }
+          
+          switch (rm.ztarget)
+          {
+          case 0x0001: rm.n = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
+          case 0x0002: rm.a = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
+          case 0x0003: rm.b = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
+          case 0x0004: rm.c = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
+          case 0x0100: rm.fb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
+          case 0x0200: rm.lb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
+          case 0x0300: rm.cb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
+          case 0x0400: rm.pb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
+          case 0x0500: rm.sb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
+          case 0x0600: rm.labels = (unsigned int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
+          }
+          
+          fprintf(stderr, "%s [%d %d %d %d %+.3f %.3f %.3f %.3f %.3f] [%d/%d]: ", *i, rm.n, rm.a, rm.b, rm.c, rm.fb, rm.lb, rm.cb, rm.pb, rm.sb, (j * (rm.ztarget == 0xffff ? 1 : rm.steps)) + k + 1, rsteps);
+          benchmark_random_model(&rm, flagvector, flagvectorsize, averages, fpprecision, &transsum, tabulate, result, rmap_extra, result_rmap, rsteps, (j * zsteps) + k);
+          fprintf(stderr, "\n");
+
+          if (model_info)
+          {
+            model_states.push_back(rm.n);
+            model_transitions.push_back(transsum);
+          }
+        }
+      }
+      fprintf(stderr, "\n");
+      
+      if (result[0]) unit_transform(result[0], flagvectorsize * rsteps, t_unit, false);
+      if (result[1]) unit_transform(result[1], flagvectorsize * rsteps, t_unit, false);
+      if (result[2]) unit_transform(result[2], flagvectorsize * rsteps, t_unit, false);
+      if (result[3]) unit_transform(result[3], flagvectorsize * rsteps, s_unit, true);
+      if (result_rmap) unit_transform(result_rmap, flagvectorsize * rsteps, s_unit, true);
+      
+      if (gen_plain)
+      {
+        for (n = 0; n < 15; ++n)
+        {
+          if (tabulate[n])
+          {
+            gen_rnd_plain(stdout, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
+                          (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), model_states,
+                          model_transitions, model_actions, basenameptr(*i), datanames[n]);
+          }
+        }
+      }
+      
+      if (gen_r2d)
+      {
+        plot_key = new double[rm.steps];
+        
+        for (n = 0; n < (int)rm.steps; ++n)
+        {
+          plot_key[n] = (rm.xtarget == 0xffff ? (rm.zstart + ((rm.zend - rm.zstart) * n / (rm.steps - 1))) : (rm.xstart + ((rm.xend - rm.xstart) * n / (rm.steps - 1))));
+        }
+        
+        for (n = 0; n < 15; ++n)
+        {
+          if (tabulate[n])
+          {
+            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s.data", title, datanames[n], get_axis_name((rm.xtarget == 0xffff ? rm.ztarget : rm.xtarget) | 0x8000, true));
+            f = fopen(&datasource[0], "wb");
+            gen_rnd_plain(f, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
+                          (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : 10), model_states,
+                          model_transitions, model_actions, basenameptr(*i), datanames[n], true);
+            fclose(f);
+          }
+        }
+        
+        delete [] plot_key;
+
+        for (n = 0; n < 15; ++n)
+        {
+          if (tabulate[n])
+          {
+            for (mmi2 = modelmap2.begin(); mmi2 != modelmap2.end(); ++mmi2)
+            {
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.gnuplot", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
+              f = fopen(&filename[0], "wb");
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.eps", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
+              rnd_2d_gnuplot_macro(f, get_axis_name(mmi2->first, false), datanames[n],
+                                  (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
+                                  title, &filename[0], datanames[n], flagvector, flagvectorsize, cfg_titles, mmi2->second);
+              fclose(f);
+            }
+          }
+        }
+      }
+      
+      if (gen_r3d)
+      {
+        plot_key = new double[2 * rsteps];
+        
+        for (n = 0; n < (int)rm.steps; ++n)
+        {
+          for (k = 0; k < (int)rm.steps; ++k)
+          {
+            plot_key[(n * rm.steps) + k] = rm.xstart + ((rm.xend - rm.xstart) * n / (rm.steps - 1));
+            plot_key[(rsteps) + (k * rm.steps) + n] = rm.zstart + ((rm.zend - rm.zstart) * n / (rm.steps - 1));
+          }
+        }
+        
+        for (n = 0; n < 15; ++n)
+        {
+          if (tabulate[n])
+          {
+            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s_%s.data", title, datanames[n], get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
+            f = fopen(&datasource[0], "wb");
+            generate_gnuplot_data(f, result[n], plot_key, flagvectorsize, rsteps, 2, rm.steps, true);
+            fclose(f);
+          }
+        }
+        
+        delete [] plot_key;
+
+        for (n = 0; n < 15; ++n)
+        {
+          if (tabulate[n])
+          {
+            for (mmi3 = modelmap3.begin(); mmi3 != modelmap3.end(); ++mmi3)
+            {
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.gnuplot", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
+              f = fopen(&filename[0], "wb");
+              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.eps", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
+              rnd_3d_gnuplot_macro(f, get_axis_name(mmi3->first & 0xffff, false), datanames[n],
+                                  get_axis_name(mmi3->first >> 16, false),
+                                  (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
+                                  title, &filename[0], datanames[n], flagvector, flagvectorsize, cfg_titles, mmi3->second);
+              fclose(f);
+            }
+          }
+        }
+      }
+      
+      for (n = 0; n < 15; ++n)
+      {
+        if (tabulate[n]) delete [] result[n];
+      }
+      
+      if (tabulate[3] && rmap_extra) delete [] result_rmap;
+    }
+
+    delete [] prmpi;
+}
+
+//void HandleRandomPA(...) {
+//}
+
 // Main program
 int main(int argc, char *argv[])
 {
   // Massive variable declaration section of doom!
-  int n, m, j, k;
+  int n, m;
   char *p, modeltype[8], command[384];
   FILE *f;
-  unsigned int averages = 1, rsteps, zsteps;
+  unsigned int averages = 1;
   const char *labelext = ".label";
   int precision = 3, total;
   const char *title = "benchmark";
   bool gen_plot_n = false, gen_plot_m = false, gen_latex = false, gen_plain = true, all_opt_cfgs = false, gen_r2d = false, gen_r3d = false;
   bool data_given = false, tabulate[15] = {false, false, false, false, false, false, false, false, false, false, false, false, false}, rmap_extra = false;
   double *result[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, *plot_key, *result_rmap = 0;
-  double xlow, xhigh, ylow, yhigh, low, high, average, fpprecision = -1.0, transsum, utime, stime, rtime;
+  double xlow, xhigh, ylow, yhigh, low, high, average, fpprecision = -1.0, utime, stime, rtime;
   bool xrange = false, yrange = false, model_info = false, random_model = false, dumprelation = false, dumpsuccessful = false;
   
-  const char *t_units[] = {"", "ms", "s", "m", "h"};
-  const char *s_units[] = {"", "Bytes", "kB", "MB", "GB"};
   unsigned int t_unit = 0, s_unit = 0;
   
-  const char *datanames[15] = {"usertime", "systemtime", "realtime", "memory", "initialsize",
-    "finalsize", "partitions", "iterations", "maxflow", "pivfail", "safail", "mincmplx", "maxcmplx",
-    "cache", "cachehits"};
   char datasource[160], filename[160];
   
   ProbabilisticModel *pm = 0;
-  RandomModel rm;
   
   unsigned long *flagvector = 0, flagvectorsize = 0;
   unsigned long allflagsvector[] = {0, 1, 2, 4, 5, 6, 16, 17, 18, 20, 21, 22, 24, 25, 26, 28, 29, 30};
-  
-  SimulationStatistics stats;
   
   std::vector<unsigned long> cfgs;
   std::vector<const char*> cfg_titles;
@@ -1056,7 +1319,12 @@ int main(int argc, char *argv[])
       {
         random_model = true;
         fprintf(stderr, "Info: Model type 'random' currently supports only DTMC type random models\n");
+//      pm = new MarkovChain;
       }
+//    else if (! strcasecmp(argv[n], "randompa")) {
+//      random_model = true;
+//      pm = new ProbabilisticAutomaton;
+//    }
       else
       {
         fprintf(stderr, "Error: Unknown model type: %s\n", argv[n]);
@@ -1163,7 +1431,7 @@ int main(int argc, char *argv[])
       }
       if (!strcasecmp(argv[n], "ms")) t_unit = 1;
       else if (!strcasecmp(argv[n], "s")) t_unit = 2;
-      else if (!strcasecmp(argv[n], "m")) t_unit = 3;
+      else if (!strcasecmp(argv[n], "m") || !strcasecmp(argv[n], "min")) t_unit = 3;
       else if (!strcasecmp(argv[n], "h")) t_unit = 4;
       else fprintf(stderr, "Warning: Time unit %s not known\n", argv[n]);
     }
@@ -1175,9 +1443,9 @@ int main(int argc, char *argv[])
         return 1;
       }
       if (!strcasecmp(argv[n], "b")) s_unit = 1;
-      else if (!strcasecmp(argv[n], "kb")) s_unit = 2;
-      else if (!strcasecmp(argv[n], "mb")) s_unit = 3;
-      else if (!strcasecmp(argv[n], "gb")) s_unit = 4;
+      else if (!strcasecmp(argv[n], "kb") || !strcasecmp(argv[n], "kib")) s_unit = 2;
+      else if (!strcasecmp(argv[n], "mb") || !strcasecmp(argv[n], "mib")) s_unit = 3;
+      else if (!strcasecmp(argv[n], "gb") || !strcasecmp(argv[n], "gib")) s_unit = 4;
       else fprintf(stderr, "Warning: Space unit %s not known\n", argv[n]);
     }
     else if (!strcmp(argv[n], "--plot") || !strcmp(argv[n], "-p"))
@@ -1320,28 +1588,6 @@ int main(int argc, char *argv[])
     }
   }
   
-  // No auto-unit in random mode warning
-  if (random_model && (t_unit == 0 || s_unit == 0))
-  {
-    for (m = 0; m < 4; ++m)
-    {
-      if (tabulate[m] && t_unit == 0 && m < 3)
-      {
-        fprintf(stderr, "Warning: In random model mode, units are not adjusted automatically.\n"
-                        "         Results will be displayed in seconds.\n");
-        t_unit = 2;
-        m = 3;
-      }
-      if (tabulate[m] && s_unit == 0 && m == 3)
-      {
-        fprintf(stderr, "Warning: In random model mode, units are not adjusted automatically.\n"
-                        "         Results will be displayed in kilo-bytes.\n");
-        s_unit = 2;
-        break;
-      }
-    }
-  }
-  
   // Default optimization settings
   if (cfgs.size() == 0 && !all_opt_cfgs)
   {
@@ -1359,6 +1605,8 @@ int main(int argc, char *argv[])
       
       if (random_model)
       {
+        RandomModel rm;
+
         ParseRandom(f, &rm);
         if (rm.xtarget == 0xffff && rm.ztarget == 0xffff && (gen_plot_n || gen_plot_m || gen_r2d || gen_r3d))
         {
@@ -1422,226 +1670,15 @@ int main(int argc, char *argv[])
     for (n = 0; n < (int)flagvectorsize; ++n) flagvector[n] = cfgs[n];
   }
   
-  // If we are dealing with random models, branch out here. This should really
-  // be in a separate function with all the variables passed in a struct but I don't
-  // want to change the rest of the code too much.
+  // If we are dealing with random models, branch out here.
   if (random_model)
   {
-    RandomModelPlotInfo rmpi, *prmpi = new RandomModelPlotInfo[files.size()], *last_rmpi;
-    last_rmpi = prmpi;
-    std::map<unsigned int, std::set<RandomModelPlotInfo*> > modelmap2;
-    std::map<unsigned int, std::set<RandomModelPlotInfo*> > modelmap3;
-    std::map<unsigned int, std::set<RandomModelPlotInfo*> >::iterator mmi2;
-    std::map<unsigned int, std::set<RandomModelPlotInfo*> >::iterator mmi3;
-    
-    for (i = files.begin(), m = 0; i != files.end(); ++i, ++m)
-    {
-      model_states.clear();
-      model_transitions.clear();
-      
-      f = fopen(*i, "rb");
-      ParseRandom(f, &rm);
-      fclose(f);
-      
-      if (rm.xtarget != 0xffff && rm.ztarget != 0xffff)
-      {
-        rmpi.mdl = rm;
-        sprintf(&rmpi.datasource[0], "%s_%%s_%s_%s.data", title, get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
-        rmpi.id = m;
-        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
-        modelmap3[rm.xtarget | (rm.ztarget << 16)].insert(last_rmpi);
-        ++last_rmpi;
-      }
-      else if (rm.xtarget != 0xffff && rm.ztarget == 0xffff)
-      {
-        rmpi.mdl = rm;
-        sprintf(&rmpi.datasource[0], "%s_%%s_%s.data", title, get_axis_name(rm.xtarget | 0x8000, true));
-        rmpi.id = m;
-        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
-        modelmap2[rm.xtarget].insert(last_rmpi);
-        ++last_rmpi;
-      }
-      else if (rm.xtarget == 0xffff && rm.ztarget != 0xffff)
-      {
-        rmpi.mdl = rm;
-        sprintf(&rmpi.datasource[0], "%s_%%s_%s.data", title, get_axis_name(rm.ztarget | 0x8000, true));
-        rmpi.id = m;
-        memcpy(last_rmpi, &rmpi, sizeof(RandomModelPlotInfo));
-        modelmap3[rm.ztarget].insert(last_rmpi);
-        ++last_rmpi;
-      }
-      
-      zsteps = (rm.ztarget == 0xffff ? 1 : rm.steps);
-      rsteps = (rm.xtarget == 0xffff ? 1 : rm.steps) * zsteps;
-      
-      for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-      {
-        if (tabulate[n]) result[n] = new double[flagvectorsize * rsteps];
-      }
-      
-      if (tabulate[3] && rmap_extra) result_rmap = new double[flagvectorsize * rsteps];
-      
-      for (j = 0; j < (rm.xtarget == 0xffff ? 1 : (int)rm.steps); ++j)
-      {
-        for (k = 0; k < (rm.ztarget == 0xffff ? 1 : (int)rm.steps); ++k)
-        {
-          switch (rm.xtarget)
-          {
-          case 0x0001: rm.n = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
-          case 0x0002: rm.a = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
-          case 0x0003: rm.b = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
-          case 0x0004: rm.c = (int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
-          case 0x0100: rm.fb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
-          case 0x0200: rm.lb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
-          case 0x0300: rm.cb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
-          case 0x0400: rm.pb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
-          case 0x0500: rm.sb = rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1)); break;
-          case 0x0600: rm.labels = (unsigned int)(rm.xstart + ((rm.xend - rm.xstart) * j / (rm.steps - 1))); break;
-          }
-          
-          switch (rm.ztarget)
-          {
-          case 0x0001: rm.n = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
-          case 0x0002: rm.a = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
-          case 0x0003: rm.b = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
-          case 0x0004: rm.c = (int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
-          case 0x0100: rm.fb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
-          case 0x0200: rm.lb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
-          case 0x0300: rm.cb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
-          case 0x0400: rm.pb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
-          case 0x0500: rm.sb = rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1)); break;
-          case 0x0600: rm.labels = (unsigned int)(rm.zstart + ((rm.zend - rm.zstart) * k / (rm.steps - 1))); break;
-          }
-          
-          fprintf(stderr, "%s [%d %d %d %d %+.3f %.3f %.3f %.3f %.3f] [%d/%d]: ", *i, rm.n, rm.a, rm.b, rm.c, rm.fb, rm.lb, rm.cb, rm.pb, rm.sb, (j * (rm.ztarget == 0xffff ? 1 : rm.steps)) + k + 1, rsteps);
-          benchmark_random_model(&rm, flagvector, flagvectorsize, averages, fpprecision, &transsum, tabulate, result, rmap_extra, result_rmap, rsteps, (j * zsteps) + k);
-          fprintf(stderr, "\n");
+    HandleRandomMC(files, tabulate, flagvector, flagvectorsize,
+                averages, fpprecision, rmap_extra,
+                model_info, t_unit, s_unit,
+                gen_plain, cfg_titles,
+                precision, gen_r2d, gen_r3d, title);
 
-          if (model_info)
-          {
-            model_states.push_back(rm.n);
-            model_transitions.push_back(transsum);
-          }
-        }
-      }
-      fprintf(stderr, "\n");
-      
-      if (result[0]) unit_transform(result[0], flagvectorsize * rsteps, t_unit, false);
-      if (result[1]) unit_transform(result[1], flagvectorsize * rsteps, t_unit, false);
-      if (result[2]) unit_transform(result[2], flagvectorsize * rsteps, t_unit, false);
-      if (result[3]) unit_transform(result[3], flagvectorsize * rsteps, s_unit, true);
-      if (result_rmap) unit_transform(result_rmap, flagvectorsize * rsteps, s_unit, true);
-      
-      if (gen_plain)
-      {
-        for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-        {
-          if (tabulate[n])
-          {
-            gen_rnd_plain(stdout, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
-                          (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : precision), model_states,
-                          model_transitions, model_actions, basenameptr(*i), datanames[n]);
-          }
-        }
-      }
-      
-      if (gen_r2d)
-      {
-        plot_key = new double[rm.steps];
-        
-        for (n = 0; n < (int)rm.steps; ++n)
-        {
-          plot_key[n] = (rm.xtarget == 0xffff ? (rm.zstart + ((rm.zend - rm.zstart) * n / (rm.steps - 1))) : (rm.xstart + ((rm.xend - rm.xstart) * n / (rm.steps - 1))));
-        }
-        
-        for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-        {
-          if (tabulate[n])
-          {
-            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s.data", title, datanames[n], get_axis_name((rm.xtarget == 0xffff ? rm.ztarget : rm.xtarget) | 0x8000, true));
-            f = fopen(&datasource[0], "wb");
-            gen_rnd_plain(f, &rm, result[n], rsteps, flagvectorsize, flagvector, cfg_titles,
-                          (n == 3 ? result_rmap : 0), "Map size", (n > 3 ? 0 : 10), model_states,
-                          model_transitions, model_actions, basenameptr(*i), datanames[n], true);
-            fclose(f);
-          }
-        }
-        
-        delete [] plot_key;
-
-        for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-        {
-          if (tabulate[n])
-          {
-            for (mmi2 = modelmap2.begin(); mmi2 != modelmap2.end(); ++mmi2)
-            {
-              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.gnuplot", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
-              f = fopen(&filename[0], "wb");
-              snprintf(&filename[0], sizeof(filename), "%s_%s_%s.eps", title, datanames[n], get_axis_name(mmi2->first | 0x8000, true));
-              rnd_2d_gnuplot_macro(f, get_axis_name(mmi2->first, false), datanames[n],
-                                  (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
-                                  title, &filename[0], datanames[n], flagvector, flagvectorsize, cfg_titles, mmi2->second);
-              fclose(f);
-            }
-          }
-        }
-      }
-      
-      if (gen_r3d)
-      {
-        plot_key = new double[2 * rsteps];
-        
-        for (n = 0; n < (int)rm.steps; ++n)
-        {
-          for (k = 0; k < (int)rm.steps; ++k)
-          {
-            plot_key[(n * rm.steps) + k] = rm.xstart + ((rm.xend - rm.xstart) * n / (rm.steps - 1));
-            plot_key[(rsteps) + (k * rm.steps) + n] = rm.zstart + ((rm.zend - rm.zstart) * n / (rm.steps - 1));
-          }
-        }
-        
-        for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-        {
-          if (tabulate[n])
-          {
-            snprintf(&datasource[0], sizeof(datasource), "%s_%s_%s_%s.data", title, datanames[n], get_axis_name(rm.xtarget | 0x8000, true), get_axis_name(rm.ztarget | 0x8000, true));
-            f = fopen(&datasource[0], "wb");
-            generate_gnuplot_data(f, result[n], plot_key, flagvectorsize, rsteps, 2, rm.steps, true);
-            fclose(f);
-          }
-        }
-        
-        delete [] plot_key;
-
-        for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-        {
-          if (tabulate[n])
-          {
-            for (mmi3 = modelmap3.begin(); mmi3 != modelmap3.end(); ++mmi3)
-            {
-              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.gnuplot", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
-              f = fopen(&filename[0], "wb");
-              snprintf(&filename[0], sizeof(filename), "%s_%s_%s_%s.eps", title, datanames[n], get_axis_name((mmi3->first & 0xffff) | 0x8000, true), get_axis_name((mmi3->first >> 16) | 0x8000, true));
-              rnd_3d_gnuplot_macro(f, get_axis_name(mmi3->first & 0xffff, false), datanames[n],
-                                  get_axis_name(mmi3->first >> 16, false),
-                                  (n == 3 ? s_units[s_unit] : (n > 3 ? "" : t_units[t_unit])),
-                                  title, &filename[0], datanames[n], flagvector, flagvectorsize, cfg_titles, mmi3->second);
-              fclose(f);
-            }
-          }
-        }
-      }
-      
-      for (n = 0; n < int(sizeof(tabulate) / sizeof(tabulate[0])); ++n)
-      {
-        if (tabulate[n]) delete [] result[n];
-      }
-      
-      if (tabulate[3] && rmap_extra) delete [] result_rmap;
-    }
-
-    delete [] prmpi;
-          
     if (!all_opt_cfgs) delete [] flagvector;
     
     return 0;
@@ -1658,6 +1695,8 @@ int main(int argc, char *argv[])
   // Go through the models and benchmark for each
   for (i = files.begin(), m = 0; i != files.end(); ++i, ++m)
   {
+    SimulationStatistics stats;
+
     f = fopen(*i, "rb");
     pm->Parse(f);
     fclose(f);
@@ -1694,7 +1733,7 @@ int main(int argc, char *argv[])
       {
         utime = -1, rtime = -1, stime = -1;
         memset(&stats, 0, sizeof(stats));
-        fprintf(stderr, "Warning: Benchmark of %s, cfg %02lx failed\n", *i, flagvector[n]);
+        fprintf(stderr, "Warning: Benchmark of %s, cfg %ld failed\n", *i, flagvector[n]);
       }
       else dumpsuccessful = true;
       pclose(f);

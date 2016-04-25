@@ -27,6 +27,7 @@
 #include "benchmark.h"
 #include "Strong.h"
 #include "StrongQ.h"
+#include "StrongCR.h"
 
 
 int LabelFunction(void *userdata, int s)
@@ -279,6 +280,21 @@ int main(int argc, char *argv[])
 #ifdef OPT_CACHE_NETS
   flags |= 0x10;
 #endif
+#ifdef OPT_CRAFA_RANZATO
+  /* use the optimization by Crafa/Ranzato 2012: avoid redoing calculations for
+     multiple states that have the same successor distribution. Implemented by
+     David N. Jansen. */
+  flags |= 0x20;
+#  ifndef OPT_PARTITION
+#    error "If OPT_CRAFA_RANZATO is set, also OPT_PARTITION must be set."
+#  endif
+#  ifndef OPT_CACHE_NETS
+#    error "If OPT_CRAFA_RANZATO is set, also OPT_CACHE_NETS must be set."
+#  endif
+#  ifdef OPT_QUOTIENT
+#    error "Please do not define OPT_QUOTIENT and OPT_CRAFA_RANZATO at the same time."
+#  endif
+#endif
 
   if (strcmp(argv[1], "strong"))
   {
@@ -316,7 +332,7 @@ int main(int argc, char *argv[])
   }
   else out = 0;
 
-#ifdef OPT_QUOTIENT
+#if defined(OPT_QUOTIENT) || defined(OPT_CRAFA_RANZATO)
   switch (type)
   {
   case 1:
@@ -336,8 +352,12 @@ int main(int argc, char *argv[])
     continuous_model = true;
     break;
   }
+#  ifdef OPT_QUOTIENT
   ss = new StrongSimulation_Quotient;
-#else//OPT_QUOTIENT
+#  else
+  ss = new StrongSimulation_CR;
+#  endif
+#else//defined(OPT_QUOTIENT) || defined(OPT_CRAFA_RANZATO)
   switch (type)
   {
   case 1:
@@ -362,7 +382,7 @@ int main(int argc, char *argv[])
     continuous_model = true;
     break;
   }
-#endif//OPT_QUOTIENT
+#endif//defined(OPT_QUOTIENT) || defined(OPT_CRAFA_RANZATO)
 
   pm->Parse(f, continuous_model);
   if (strcmp(argv[5], "-")) fclose(f);

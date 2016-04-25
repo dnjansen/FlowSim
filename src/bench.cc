@@ -96,6 +96,7 @@ void Benchmark::Bench(ProbabilisticModel *pm, SimulationRelation *simulator, uns
 
     for (unsigned int n = 0; n < averages; ++n)
     {
+      fputc('.', stderr);
       getrusage(RUSAGE_SELF, &r1);
       getrusage(RUSAGE_CHILDREN, &rc1);
       gettimeofday(&t1, 0);

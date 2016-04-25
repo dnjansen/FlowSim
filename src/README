@@ -7,6 +7,11 @@ Formal techniques for networked and distributed systems, FORTE 2008.
 pages 37-52.
 DOI 10.1007/978-3-540-68855-6_3
 
+and also for the publication:
+Zhang, Lijun; Jansen, David N.:
+A space-efficient probabilistic simulation algorithm.
+Information and Computation, accepted for publication in 2016.
+
 
 >>> Random DTMC Generator (r-dtmc.cc)
 
@@ -59,6 +64,8 @@ StrongPA.cc   : Implements decision strategy for probabilistic
                 automata.
 StrongQ.cc    : Implements the quotient decision strategy for both
                 MCs and PAs.
+StrongCR.cc   : Implements the algorithm of Crafa/Ranzato 2012 for
+                both MCs and PAs.
 
 The Strong* classes are used by passing a model to the Simulate()
 function, optionally supplying a buffer that will receive a list of
@@ -116,8 +123,20 @@ case, the network can be discarded without any further computation.
 >>> Quotient (#define OPT_QUOTIENT)
 
 Use a partition refinement approach, rather than the refinement loop
-used in all other approaches. This approach can only be combined with
-parametric maximum flow; the other optimizations have no effect.
+used in all other approaches. This approach cannot be combined with
+state partitioning (OPT_PARTITION).
+
+
+>>> Crafa/Ranzato (#define OPT_CRAFA_RANZATO)
+
+Use the strong simulation algorithm by
+Crafa, Silvia; Ranzato, Francesco: Bisimulation and simulation algorithms
+on probabilistic transition systems by abstract interpretation.
+Formal Methods in System Design (2012) 40:356-376.
+DOI 10.1007/s10703-012-0147-3
+This option requires OPT_PARTITION and OPT_CACHE_NETS to be set. It does
+not combine with OPT_QUOTIENT.
+This option has been implemented by David N. Jansen.
 
 
 >>> Modelstat Tool (modelstat.cc)

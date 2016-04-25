@@ -1319,7 +1319,8 @@ int main(int argc, char *argv[])
   ProbabilisticModel *pm = 0;
   
   unsigned long *flagvector = 0, flagvectorsize = 0;
-  unsigned long allflagsvector[] = {0, 1, 2, 4, 5, 6, 16, 17, 18, 20, 21, 22, 24, 25, 26, 28, 29, 30};
+  const unsigned long allflagsvector[] = {0, 1, 2, 4, 5, 6, 16, 17, 18, 20, 21,
+              22, 24, 25, 26, 28, 29, 30, 49, 53, 57, 61};
   
   std::vector<unsigned long> cfgs;
   std::vector<const char*> cfg_titles;
@@ -1429,9 +1430,6 @@ int main(int argc, char *argv[])
         return 1;
       }
       fpprecision = strtod(argv[n], 0);
-#ifndef DISABLE_FP_APPROXIMATION
-      CompactMaxFlow<double>::precision = fpprecision;
-#endif
     }
     else if (!strcmp(argv[n], "--data") || !strcmp(argv[n], "-d"))
     {
@@ -1920,9 +1918,7 @@ int main(int argc, char *argv[])
     {
       if (tabulate[n])
       {
-        title_len = strlen(title) + strlen(datanames[n]) +
-                (n > 3 && n < 15 ? 0 : strlen(n == 3 ? s_units[s_unit]
-                                                    : t_units[t_unit])) + 7;
+        title_len = strlen(title) + strlen(datanames[n]) + strlen(n == 3 ? s_units[s_unit] : (n > 3 && n < 15 ? "" : t_units[t_unit])) + 7;
         title_fill = find_table_width(result[n], flagvectorsize, files.size(), flagvector, cfg_titles, files,
                                       n == 3 ? result_rmap : 0, "Map size",
                                       n>3 && n<15 ? 0 : precision,model_states,
@@ -1931,9 +1927,7 @@ int main(int argc, char *argv[])
         if (title_fill <= 4) title_fill = 4;
         total = (title_fill / 2) + (title_fill % 2);
         while (total--) fputs("-", stdout);
-        fprintf(stdout, " %s: %s (%s) ", title, datanames[n],
-                        n == 3 ? s_units[s_unit]
-                                : (n > 3 && n < 15 ? "" : t_units[t_unit]));
+        fprintf(stdout, " %s: %s (%s) ", title, datanames[n], (n == 3 ? s_units[s_unit] : (n > 3 && n < 15 ? "" : t_units[t_unit])));
         total = title_fill / 2;
         while (total--) fputs("-", stdout);
         fputs("\n", stdout);

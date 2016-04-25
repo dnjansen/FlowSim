@@ -33,6 +33,7 @@ template void CompactMaxFlow<double>::_FreeInternals();
 template bool CompactMaxFlow<double>::IsFlowTotal(bool restart);
 template bool CompactMaxFlow<double>::UpdateNetwork(RelationMap *rmap,
             bool sigarc);
+template bool CompactMaxFlow<double>::DeleteArc(int source, int dest);
 
 #ifdef DEBUG
 template <typename _T> size_t CompactMaxFlow<_T>::global_space = 0;
@@ -112,9 +113,6 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
   
   assert(sl && sr && pl && pr && rmap);
   
-  n1 = lc;
-  n2 = rc;
-  
   // Determine number of arcs
   for (n = 0, n_arcs = 0; n < lc; ++n)
   {
@@ -130,6 +128,8 @@ template <typename _T> bool CompactMaxFlow<_T>::CreateNetwork(int *sl, int *sr, 
     return false;
   }
   
+  n1 = lc;
+  n2 = rc;
   RegisterMemAlloc((n1 + n2) * sizeof(*set1) + n_arcs * sizeof(*arcs)
               + (n1 + n2 + n_arcs*2) * sizeof(*arc_lists));
   set1 = new node[n1 + n2];
@@ -354,6 +354,31 @@ template <typename _T> bool CompactMaxFlow<_T>::UpdateNetwork(RelationMap *rmap,
     }
   }
   
+  return true;
+}
+
+template <typename _T> bool CompactMaxFlow<_T>::DeleteArc(const int source,
+            const int dest)
+{
+  if (NULL==set1 || NULL==arcs || NULL==arc_lists || !valid) return false;
+  if (incomplete_flow) return true;
+
+  // Search the correct arc.
+  for (int n = 0; n < n1; ++n)
+  {
+    if (source == set1[n].id)
+    {
+      for (arc **current = set1[n].arcs; *current != NULL; current++)
+      {
+        if ((*current)->tail && (*current)->head && dest
+                    == (*current)->head->id)
+        {
+          _RemoveArc(*current, false);
+          return true;
+        }
+      }
+    }
+  }
   return true;
 }
 

@@ -40,7 +40,7 @@ depend:
 	  $(CXX) -MM $(CXXFLAGS) -MF killme.$$ -MQ "$$i" "$$i" || exit 1 ; \
 	  sed '1s/ '"$$i"'//' < killme.$$ >> Makefile.$$ ; \
 	done
-	for i in [^bcS]*.cc bench.cc bench[^o]*.cc ; do \
+	for i in [^bcS]*.cc bench.cc bench[^o]*.cc StrongCR.cc ; do \
 	  $(CXX) -MM $(CXXFLAGS) -MF killme.$$ "$$i" || exit 1 ; \
 	  sed '1s/ '"$$i"'//' < killme.$$ >> Makefile.$$ ; \
 	done
@@ -68,6 +68,7 @@ flowsim: bench.o benchmark.o prmodel.o compactmaxflow.cc r-dtmc.o stats.o
 benchsingle: benchone_0 benchone_1 benchone_2 benchone_4 benchone_5 benchone_6 benchone_16 \
              benchone_17 benchone_18 benchone_20 benchone_21 benchone_22 benchone_24 benchone_25 \
              benchone_26 benchone_28 benchone_29 benchone_30
+benchsingle: benchone_49 benchone_53 benchone_57 benchone_61
 
 benchone_0 : bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongMC.cc StrongPA.cc
 	$(CXX) $(CXXFLAGS)                                                                                          -o $@ $^
@@ -122,22 +123,40 @@ benchone_29: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc St
 
 benchone_30: bench.o prmodel.o r-dtmc.o stats.o benchone.cc compactmaxflow.cc StrongQ.cc
 	$(CXX) $(CXXFLAGS)                 -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS -DOPT_QUOTIENT -o $@ $^
+ 
+# StrongCR does not depend on the options; therefore, we can include its .o file:
+benchone_49: bench.o prmodel.o r-dtmc.o stats.o StrongCR.o benchone.cc compactmaxflow.cc
+	$(CXX) $(CXXFLAGS) -DOPT_PARTITION                                          -DOPT_CACHE_NETS -DOPT_CRAFA_RANZATO -o $@ $^
+ 
+benchone_53: bench.o prmodel.o r-dtmc.o stats.o StrongCR.o benchone.cc compactmaxflow.cc
+	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -DOPT_P_INVARIANT                        -DOPT_CACHE_NETS -DOPT_CRAFA_RANZATO -o $@ $^
+ 
+benchone_57: bench.o prmodel.o r-dtmc.o stats.o StrongCR.o benchone.cc compactmaxflow.cc
+	$(CXX) $(CXXFLAGS) -DOPT_PARTITION                   -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS -DOPT_CRAFA_RANZATO -o $@ $^
+ 
+benchone_61: bench.o prmodel.o r-dtmc.o stats.o StrongCR.o benchone.cc compactmaxflow.cc
+	$(CXX) $(CXXFLAGS) -DOPT_PARTITION -DOPT_P_INVARIANT -DOPT_SIGNIFICIANT_ARC -DOPT_CACHE_NETS -DOPT_CRAFA_RANZATO -o $@ $^
+ 
 # DO NOT DELETE
 
 benchone.cc: benchmark.h Simrel.h prmodel.h compactmaxflow.h \
-  relationmap.h Strong.h StrongQ.h
-compactmaxflow.cc: compactmaxflow.h relationmap.h
+  relationmap.h stats.h Strong.h StrongQ.h StrongCR.h
+compactmaxflow.cc: compactmaxflow.h relationmap.h \
+  stats.h
 StrongMC.cc: Strong.h Simrel.h prmodel.h compactmaxflow.h \
-  relationmap.h
+  relationmap.h stats.h
 StrongPA.cc: Strong.h Simrel.h prmodel.h compactmaxflow.h \
-  relationmap.h
+  relationmap.h stats.h
 StrongQ.cc: StrongQ.h Strong.h Simrel.h prmodel.h \
-  compactmaxflow.h relationmap.h
+  compactmaxflow.h relationmap.h stats.h
 modelstat.o: prmodel.h
 prmodel.o: prmodel.h
 r-dtmc.o: modelbuilder.h prmodel.h
 r-mdp.o: prmodel.h
+stats.o: stats.h
 bench.o: benchmark.h Simrel.h prmodel.h compactmaxflow.h \
-  relationmap.h
+  relationmap.h stats.h
 benchmark.o: benchmark.h Simrel.h prmodel.h compactmaxflow.h \
-  relationmap.h
+  relationmap.h stats.h
+StrongCR.o: StrongCR.h Strong.h Simrel.h prmodel.h \
+  compactmaxflow.h relationmap.h stats.h

@@ -47,6 +47,7 @@ public:
   }
   
   bool UpdateNetwork(RelationMap*, bool);
+  bool DeleteArc(int source, int dest);
   
   bool IsFlowTotal(bool restart = false);
   

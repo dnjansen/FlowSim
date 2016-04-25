@@ -100,6 +100,7 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
   new_partition = partition + model->States();
   
   InitializeActionMasks();
+  // lines 2 and 3 of the algorithm:
   InitializeRelation();
 
 #ifdef DEBUG
@@ -130,6 +131,10 @@ unsigned int StrongSimulation_Quotient::Simulate(ProbabilisticModel *target, set
 
   // Find maximum stable partition pair (note call to Iterate() in loop condition!)
   for (iteration = 1; Iterate() != -1; ++iteration)
+    // iteration = 1: line 1 of the algorithm -- however, iterations start
+    //                with 0 there.
+    //                Iterate() != -1: lines 5-14 of the algorithm (and 16)
+    //                                 ++iteration: line 15 of the algorithm
   {
 #ifdef QLOG
     fprintf(qlog, "\n===== After Iteration %d =====\nBlocks:", iteration);
@@ -275,6 +280,7 @@ void StrongSimulation_Quotient::InitializeRelation()
   int n, m, p, a, b;
   
   // Create initial partition into blocks by L(s) and Act(s)
+  // The following loop is line 2 of the algorithm.
   memset(partition, 0, sizeof(int) * nStates);
   for (n = 0, p = 0; n < nStates - 1; )
   {
@@ -303,6 +309,7 @@ void StrongSimulation_Quotient::InitializeRelation()
     RegisterMemAlloc(sizeof(int) + SET_OVERHEAD);
     sigma[partition[n]].insert(n);
   }
+  // The following loop is line 3 of the algorithm.
   for (n = 0; n < nBlocks; ++n)
   {
     for (m = 0; m < nBlocks; ++m)
@@ -310,9 +317,9 @@ void StrongSimulation_Quotient::InitializeRelation()
         if (n == m) rmap.Set(n, m);
         else
         {
-          a = 0, b = 0;
-          while (partition[a] != n) ++a;
-          while (partition[b] != m) ++b;
+          // choose any state from blocks n and m:
+          a = *sigma[n].begin();
+          b = *sigma[m].begin();
           if (Label(a) != Label(b))
           {
             continue;
@@ -509,17 +516,20 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
   
   // Iterate through entire map and put all pairs that simulate into the local set
   repeat = false;
+  // Line 11 of the algorithm
   for (i = 0; i < nBlocks; ++i)
   {
     for (j = 0; j < nBlocks; ++j)
     {
       if (i == j || !rmap(i, j)) continue;
       
+      // Line 12 of the algorithm
       if (!sim->qRq(i, j, false))
       {
 #ifdef QLOG
         fprintf(qlog, "[PURG] Purged (%d,%d) from partition relation\n", i, j);
 #endif
+        // Line 13 of the algorithm
         rmap.Clear(i, j);
         repeat = true;
       }
@@ -536,22 +546,26 @@ void StrongSimulation_Quotient::PurgePartitionRelation()
 #endif
   
   // Keep repeating inner block until nothing changes in the relation
+  // Line 14 of the algorithm
   while (repeat)
   {
     repeat = false;
     
     // Iterate through all blocks
+    // Line 11 of the algorithm
     for (ri = relation.begin(); ri != relation.end(); ++ri)
     {
       i = ri->first;
       j = ri->second;
       
       // Remove this pair from relation if j cannot simulate i
+      // Line 12 of the algorithm
       if (!sim->qRq(i, j, false))
       {
 #ifdef QLOG
         fprintf(qlog, "[PURG] Purged (%d,%d) from partition relation\n", i, j);
 #endif
+        // Line 13 of the algorithm
         rmap.Clear(i, j);
         repeat = true;
       }
@@ -862,11 +876,14 @@ int StrongSimulation_Quotient::Iterate()
                           ::vertex_descriptor, directedS>) + VEC_OVERHEAD));
   delete digraph_closure;
   
-  // Reconstruct quotient automaton which is required by lines 9-15 and is also used at the
+  // Reconstruct quotient automaton which is required by
+  // lines 10-14 of the algorithm and is also used at the
   // beginning of the next iteration
+  // Line 9 of the algorithm
   LiftDistributions();
 
-  // Purge partition relation based on updated lifted distributions (lines 9-15)
+  // Purge partition relation based on updated lifted distributions
+  // Lines 10-14 of the algorithm
   PurgePartitionRelation();
   
   gamma_unchanged = !rmap.MapChanged();
